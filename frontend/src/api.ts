@@ -11,7 +11,13 @@ import type {
   ZooTask
 } from "./types";
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000";
+function normalizeApiBase(value: string | undefined): string {
+  const base = value?.trim() || "/api";
+  if (base === "/") return "";
+  return base.replace(/\/+$/, "");
+}
+
+const API_BASE = normalizeApiBase(import.meta.env.VITE_API_URL);
 const REQUEST_TIMEOUT_MS = 10_000;
 
 type RequestOptions = RequestInit & {
