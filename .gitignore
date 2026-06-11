@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *.sqlite
+*.sqlite3
 *.db
 .pytest_cache/
 .mypy_cache/
@@ -16,4 +17,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 *.tsbuildinfo
-
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

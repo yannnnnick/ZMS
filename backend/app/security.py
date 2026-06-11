@@ -9,41 +9,38 @@ from typing import Any
 import jwt
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
-from passlib.context import CryptContext
+from pwdlib import PasswordHash
+from pwdlib.exceptions import UnknownHashError
 from sqlalchemy.orm import Session
 
 from .database import get_db
 from .models import AuditLog, User, UserRole
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+password_hash = PasswordHash.recommended()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 JWT_SECRET = os.getenv("JWT_SECRET", "dev-only-change-me-for-local-mvp-32-bytes")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "480"))
-MAX_PASSWORD_BYTES = 72
 MAX_LOGIN_ATTEMPTS = 5
 LOGIN_WINDOW_SECONDS = 300
 
 _login_failures: dict[str, list[float]] = {}
 
 
-def validate_password_length(password: str) -> None:
-    if len(password.encode("utf-8")) > MAX_PASSWORD_BYTES:
-        raise ValueError("Password must not exceed 72 bytes for bcrypt.")
-
-
 def hash_password(password: str) -> str:
-    validate_password_length(password)
-    return pwd_context.hash(password)
+    if not password:
+        raise ValueError("Password must not be empty.")
+    return password_hash.hash(password)
 
 
-def verify_password(password: str, password_hash: str) -> bool:
-    try:
-        validate_password_length(password)
-    except ValueError:
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    if not plain_password or not hashed_password:
         return False
-    return pwd_context.verify(password, password_hash)
+    try:
+        return password_hash.verify(plain_password, hashed_password)
+    except UnknownHashError:
+        return False
 
 
 def create_access_token(subject: str, role: UserRole) -> str:

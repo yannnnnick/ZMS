@@ -12,7 +12,7 @@ Alle geschuetzten API-Endpunkte verlangen einen gueltigen Bearer-Token. Rollen w
 
 ## Passwortspeicherung
 
-Passwoerter werden mit bcrypt ueber `passlib` gehasht. Klartextpasswoerter werden nicht gespeichert und nicht in Audit-Logs geschrieben.
+Passwoerter werden nicht im Klartext gespeichert. Das System verwendet Argon2 ueber `pwdlib` fuer Passwort-Hashing. Dadurch werden bcrypt-spezifische 72-Byte-Grenzen und passlib/bcrypt-Kompatibilitaetsprobleme vermieden. Demo-Passwoerter sind synthetisch und nur fuer die lokale Abgabeumgebung vorgesehen. Klartextpasswoerter werden nicht in Audit-Logs geschrieben.
 
 ## Audit-Logging
 
@@ -25,4 +25,3 @@ Relevante Aktionen wie Login, Logout, Anlegen, Aktualisieren und Deaktivieren we
 ## Grenzen des MVP
 
 Das Login-Rate-Limit ist in-memory und fuer lokale Demo-Zwecke geeignet. Fuer produktionsnahe Setups waere ein persistenter Store wie Redis notwendig. Das Default-`JWT_SECRET` ist nur fuer lokale Entwicklung gedacht und muss ausserhalb des Repositories gesetzt werden.
-

@@ -31,7 +31,7 @@
 | DS-05 | Deaktivierungskonzept | Tiere werden per Soft Delete deaktiviert | API-Review |
 | DS-06 | Audit ohne sensible Daten | `safe_details` filtert Secrets/Passwoerter/Tokens | Code-Review |
 | DS-07 | Keine Secrets versionieren | `.gitignore` blockiert `.env` und `.env.*` | Repo-Review |
-| SEC-01 | Passwort-Hashing | bcrypt via `passlib`, Pins `passlib[bcrypt]==1.7.4` und `bcrypt==4.0.1`, 72-Byte-Grenze vor bcrypt | Backend Tests, `pip show bcrypt passlib` |
+| SEC-01 | Passwort-Hashing | Argon2 via `pwdlib[argon2]`; `passlib` und `bcrypt` sind aus Requirements und Backend-Code entfernt | Backend Tests, `pip show pwdlib argon2-cffi`, `pip show bcrypt passlib` |
 | SEC-02 | Serverseitige Zugriffskontrolle | FastAPI Dependencies pro Endpunkt | Tests |
 | SEC-03 | IDOR-Reduktion | Entity-Lookups und Rollenpruefung pro Objektaktion | Tests/Review |
 | SEC-04 | Injection-Schutz | SQLAlchemy ORM statt String-SQL | Code-Review |

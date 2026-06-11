@@ -8,6 +8,7 @@ Webbasiertes Uni-MVP zur Verwaltung von Tieren, Arten, Gehegen, Fuetterungsplaen
 - Datenbank: SQLite fuer lokale Entwicklung, PostgreSQL optional ueber `DATABASE_URL`
 - Frontend: React, TypeScript, Vite
 - Tests: pytest fuer Backend, TypeScript/Vite-Build fuer Frontend
+- Passwort-Hashing: Argon2 ueber `pwdlib[argon2]`
 
 ## Lokaler Start
 
@@ -60,6 +61,7 @@ cd backend
 cd frontend
 npm install
 npm run build
+npm audit --audit-level=low
 ```
 
 ## Migrationen
@@ -97,3 +99,5 @@ Keine Secrets gehoeren ins Repository. Lokale `.env`-Dateien sind per `.gitignor
 
 Die Endpunkte sind serverseitig per RBAC abgesichert.
 `POST /auth/login` erwartet JSON im Format `{"email":"admin@example.test","password":"Admin123!"}` und liefert mindestens `access_token` und `token_type`.
+
+Passwoerter werden nicht im Klartext gespeichert. Das Backend verwendet Argon2 ueber `pwdlib`; bcrypt/passlib werden nicht mehr benoetigt.

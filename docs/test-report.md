@@ -6,25 +6,28 @@ Stand: 2026-06-11
 
 | Bereich | Command | Status | Ergebnis |
 | --- | --- | --- | --- |
-| Repository | `git status --short` | Nicht bestanden | Projektordner ist kein Git-Repository: `fatal: not a git repository`. |
-| Backend Dependencies | `.\.venv\Scripts\python.exe -m pip install -r requirements.txt` | Bestanden | Venv auf Requirements gebracht, `bcrypt==4.0.1` installiert. |
-| Backend Pins | `.\.venv\Scripts\python.exe -m pip show bcrypt passlib` | Bestanden | `bcrypt 4.0.1`, `passlib 1.7.4`. |
-| Backend Tests | `.\.venv\Scripts\python.exe -m pytest -q` | Bestanden | `8 passed`, 19 Deprecation-Warnungen. |
+| Repository | `git status --short` | Bestanden | Git-Repository erkannt. Arbeitsbaum enthaelt die beabsichtigten Aenderungen; `frontend/tsconfig.tsbuildinfo` wurde aus dem Git-Index entfernt. |
+| Backend Dependencies | `.\.venv\Scripts\python.exe -m pip install -r requirements.txt` | Bestanden | Venv auf Requirements gebracht, `pwdlib 0.3.0` und `argon2-cffi 25.1.0` installiert. |
+| Backend Argon2 | `.\.venv\Scripts\python.exe -m pip show pwdlib argon2-cffi` | Bestanden | `pwdlib 0.3.0`, `argon2-cffi 25.1.0`. |
+| Backend Alt-Pakete | `.\.venv\Scripts\python.exe -m pip show bcrypt passlib` | Bestanden | `bcrypt` und `passlib` nicht installiert. |
+| Backend Tests | `.\.venv\Scripts\python.exe -m pytest -q` | Bestanden | `11 passed`, 19 Deprecation-Warnungen. |
 | Backend Compile | `.\.venv\Scripts\python.exe -m compileall app tests` | Bestanden | `app` und `tests` kompiliert. |
-| Frontend Install | `npm install` | Bestanden | Dependencies installiert, `0 vulnerabilities`. |
-| Frontend Types | `npm install --save-dev @types/react @types/react-dom` | Bestanden | React-Typen fuer TypeScript ergaenzt. |
+| Frontend Install | `npm install` | Bestanden | Dependencies aktuell, `found 0 vulnerabilities`. |
 | Frontend Build | `npm run build` | Bestanden | TypeScript und Vite Build erfolgreich, `dist` erzeugt. |
 | Frontend Audit | `npm audit --audit-level=low` | Bestanden | `found 0 vulnerabilities`. |
 | Python Audit | `.\.venv\Scripts\python.exe -m pip_audit --version` | Nicht ausgefuehrt | `pip_audit` ist nicht installiert. |
-| `.env`-Suche | `Get-ChildItem ... .env` | Nicht ausgefuehrt | Sicherheitsrichtlinie hat Pfad-Enumeration abgelehnt, weil `.env`-Pfade nicht offengelegt werden sollen. `.gitignore` wurde geprueft und enthaelt `.env` sowie `.env.*`. |
-| Secret-Pattern-Scan | `rg -il --hidden ...` ohne `.env`, `.venv`, `node_modules`, `dist` | Bestanden | Keine Dateitreffer fuer einfache Key/Token/Secret-Patterns. |
-| Lokaler Smoke-Test | Backend + Frontend Dev-Server | Bestanden | `/docs=200`, Login `200`, Dashboard `200`, Viewer-Tieranlage `403`, Frontend Root `200`. |
+| `.env`-Pruefung | `git status --short` und `.gitignore` | Bestanden | Keine `.env`-Datei im Git-Status; `.gitignore` enthaelt `.env` und `.env.*`. `.env`-Inhalte wurden nicht geoeffnet. |
+| Argon2-Reste-Scan | `rg -n -i "bcrypt|passlib|CryptContext|72" backend ...` | Bestanden | Keine Treffer in produktivem Backend-Code oder Backend-Tests. |
+| Lokaler Smoke-Test | Backend + Frontend HTTP | Bestanden | `/docs=200`, Login `200`, Dashboard `200`, Viewer-Tieranlage `403`, Frontend Root `200`. |
 
 ## Abgedeckte Backend-Szenarien
 
 - Login mit Demo-Admin und Dashboardzugriff.
 - Login lehnt falsches Passwort mit `401` ab.
-- Login lehnt ein bcrypt-ueberlanges Passwort ohne Serverfehler mit `401` ab.
+- Login behandelt ein langes Passwort kontrolliert ohne Serverfehler.
+- Direktes Hashing und Verifizieren eines langen Passworts funktioniert mit Argon2.
+- Leeres Passwort wird beim Hashing kontrolliert abgelehnt.
+- Unbekannte oder kaputte Passwort-Hash-Formate schlagen kontrolliert fehl.
 - Login lehnt inaktiven Nutzer mit `403` ab.
 - Viewer darf keine Tiere anlegen.
 - Keeper darf Tiere anlegen und erzeugt Audit-Log.
@@ -45,10 +48,11 @@ Geprueft wurde lokal mit `python -m uvicorn app.main:app --host 127.0.0.1 --port
 
 Ein Browser-Konsolencheck wurde nicht durchgefuehrt; der Smoke-Test ist HTTP/API-basiert.
 
+Nach der Migration von passlib/bcrypt auf pwdlib/Argon2 wurden Backend-Tests, Compile-Check, Frontend-Build und Dependency-Checks erneut ausgefuehrt. Die lokale Demo-Datenbank `backend/zoo.db` wurde geloescht und beim Runtime-Smoke neu erzeugt, damit keine alten bcrypt-Hashes weiterverwendet werden.
+
 ## Bekannte Restrisiken
 
-- Der Ordner ist kein Git-Repository, dadurch ist kein Git-Diff oder Git-Statusnachweis moeglich.
 - FastAPI `on_event` und die aktuelle TestClient/httpx-Kombination erzeugen Deprecation-Warnungen, blockieren Tests aber nicht.
-- `.env`-Dateipfade wurden nicht enumeriert, um keine `.env`-Informationen offenzulegen.
+- Eine rekursive lokale DB-Dateisuche fand `backend/zoo.db`, brach danach aber wegen fehlender Berechtigung auf `.pytest_cache` ab. `backend/zoo.db` wurde als lokale Demo-DB neu erzeugt und ist durch `.gitignore` ausgeschlossen.
 - `pip-audit` ist nicht installiert; es wurde kein Python-Dependency-Audit ausgefuehrt.
 - Logout schreibt einen Audit-Eintrag, invalidiert bestehende JWTs aber nicht serverseitig.

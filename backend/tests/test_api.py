@@ -11,7 +11,7 @@ from app.database import Base, get_db
 from app.main import create_app
 from app.models import User, UserRole
 from app.seed import seed_demo_data
-from app.security import hash_password
+from app.security import hash_password, verify_password
 
 
 @pytest.fixture()
@@ -58,9 +58,28 @@ def test_login_rejects_wrong_password(client: TestClient) -> None:
     assert response.status_code == 401
 
 
-def test_login_rejects_overlong_bcrypt_password_without_server_error(client: TestClient) -> None:
-    response = client.post("/auth/login", json={"email": "admin@example.test", "password": "A" * 73})
-    assert response.status_code == 401
+def test_login_rejects_long_password_without_server_error(client: TestClient) -> None:
+    response = client.post("/auth/login", json={"email": "admin@example.test", "password": "A" * 200})
+    assert response.status_code in {400, 401, 422}
+    assert response.status_code != 500
+
+
+def test_long_password_can_be_hashed_and_verified() -> None:
+    password = "A" * 200
+    hashed = hash_password(password)
+
+    assert hashed != password
+    assert verify_password(password, hashed) is True
+    assert verify_password("wrong-password", hashed) is False
+
+
+def test_empty_password_is_rejected() -> None:
+    with pytest.raises(ValueError):
+        hash_password("")
+
+
+def test_unknown_password_hash_returns_false() -> None:
+    assert verify_password("Admin123!", "not-a-valid-password-hash") is False
 
 
 def test_login_rejects_inactive_user(client: TestClient) -> None:
