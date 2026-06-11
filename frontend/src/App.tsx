@@ -17,13 +17,28 @@ function readCookie(name: string): string | null {
   return cookie ? decodeURIComponent(cookie.slice(prefix.length)) : null;
 }
 
+function defaultViewForRole(role: Session["role"]): ViewKey {
+  if (role === "viewer") return "visitorMap";
+  if (role === "keeper") return "keeperCalendar";
+  if (role === "vet") return "vetCalendar";
+  return "dashboard";
+}
+
+const publicVisitorSession: Session = {
+  role: "viewer",
+  display_name: "Besucher",
+  csrf_token: ""
+};
+
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [view, setView] = useState<ViewKey>("dashboard");
+  const [isPublicVisitor, setIsPublicVisitor] = useState(false);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
 
   const clearSession = useCallback(() => {
     setSession(null);
+    setIsPublicVisitor(false);
     setView("dashboard");
   }, []);
 
@@ -36,6 +51,7 @@ export default function App() {
         if (!csrfToken) throw new Error("Missing CSRF token");
         if (isActive) {
           setSession({ role: user.role, display_name: user.display_name, csrf_token: csrfToken });
+          setView(defaultViewForRole(user.role));
         }
       } catch {
         if (isActive) {
@@ -56,11 +72,15 @@ export default function App() {
 
   const handleLogin = useCallback((nextSession: Session) => {
     setSession(nextSession);
-    setView("dashboard");
+    setIsPublicVisitor(false);
+    setView(defaultViewForRole(nextSession.role));
   }, []);
 
   const handleLogout = useCallback(async () => {
-    if (!session) return;
+    if (!session) {
+      clearSession();
+      return;
+    }
     try {
       await api.logout(session.csrf_token);
     } catch {
@@ -70,11 +90,12 @@ export default function App() {
     }
   }, [clearSession, session]);
 
+  const effectiveSession = session ?? (isPublicVisitor ? publicVisitorSession : null);
   const availableNav = useMemo(
-    () => (session ? navItems.filter((item) => !item.roles || item.roles.includes(session.role)) : []),
-    [session]
+    () => (effectiveSession ? navItems.filter((item) => !item.roles || item.roles.includes(effectiveSession.role)) : []),
+    [effectiveSession]
   );
-  const activeView = availableNav.some((item) => item.key === view) ? view : "dashboard";
+  const activeView = availableNav.some((item) => item.key === view) ? view : (availableNav[0]?.key ?? "dashboard");
 
   if (isCheckingSession) {
     return (
@@ -84,8 +105,16 @@ export default function App() {
     );
   }
 
-  if (!session) {
-    return <LoginScreen onLogin={handleLogin} />;
+  if (!effectiveSession) {
+    return (
+      <LoginScreen
+        onLogin={handleLogin}
+        onOpenPublicMap={() => {
+          setIsPublicVisitor(true);
+          setView("visitorMap");
+        }}
+      />
+    );
   }
 
   return (
@@ -120,15 +149,15 @@ export default function App() {
             <p>Rollenbasierte Verwaltung mit synthetischen Demo-Daten</p>
           </div>
           <div className="userbox">
-            <span>{session.display_name}</span>
-            <StatusChip value={roleLabels[session.role]} tone="neutral" />
-            <button className="icon-button" title="Abmelden" type="button" onClick={() => void handleLogout()}>
+            <span>{effectiveSession.display_name}</span>
+            <StatusChip value={roleLabels[effectiveSession.role]} tone="neutral" />
+            <button className="icon-button" title={session ? "Abmelden" : "Zur Anmeldung"} type="button" onClick={() => void handleLogout()}>
               <Icon name="logout" />
             </button>
           </div>
         </header>
 
-        <DataWorkspace session={session} view={activeView} onUnauthorized={clearSession} />
+        <DataWorkspace session={effectiveSession} view={activeView} onUnauthorized={clearSession} />
       </main>
     </div>
   );

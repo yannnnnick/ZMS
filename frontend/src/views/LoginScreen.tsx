@@ -4,7 +4,7 @@ import { api, ApiError } from "../api";
 import { Icon } from "../components/Icon";
 import type { Session } from "../types";
 
-export function LoginScreen({ onLogin }: { onLogin: (session: Session) => void }) {
+export function LoginScreen({ onLogin, onOpenPublicMap }: { onLogin: (session: Session) => void; onOpenPublicMap: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +65,10 @@ export function LoginScreen({ onLogin }: { onLogin: (session: Session) => void }
           <button className="primary-button" disabled={isLoading} type="submit">
             <Icon name="login" />
             {isLoading ? "Pruefe..." : "Einloggen"}
+          </button>
+          <button className="secondary-button" type="button" onClick={onOpenPublicMap}>
+            <Icon name="map" />
+            Besucherkarte
           </button>
         </form>
       </section>

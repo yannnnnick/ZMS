@@ -1,13 +1,23 @@
 import type {
   Animal,
+  AnimalAssignment,
+  AnimalConditionReport,
   AuditLog,
+  CareTask,
   DashboardSummary,
   Enclosure,
+  EnclosureAssignment,
+  EconomySummary,
+  FeedingOptimization,
   FeedingSchedule,
   HealthRecord,
+  MedicalReport,
+  PublicZooMap,
+  SalarySimulation,
   Session,
   Species,
   User,
+  VetTask,
   ZooTask
 } from "./types";
 
@@ -95,6 +105,7 @@ export const api = {
     request<Session>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
   logout: (csrfToken: string) => request<{ status: string }>("/auth/logout", { method: "POST", csrfToken }),
   me: () => request<User>("/me"),
+  users: (role?: string) => request<User[]>(`/users${role ? `?role=${encodeURIComponent(role)}` : ""}`),
   dashboard: () => request<DashboardSummary>("/dashboard"),
   animals: () => request<Animal[]>("/animals"),
   createAnimal: (csrfToken: string, body: Record<string, unknown>) =>
@@ -120,5 +131,33 @@ export const api = {
   updateTask: (csrfToken: string, id: number, body: Record<string, unknown>) =>
     request<ZooTask>(`/tasks/${id}`, { method: "PATCH", csrfToken, body: JSON.stringify(body) }),
   deleteTask: (csrfToken: string, id: number) => request<void>(`/tasks/${id}`, { method: "DELETE", csrfToken }),
+  animalAssignments: () => request<AnimalAssignment[]>("/assignments/animals"),
+  createAnimalAssignment: (csrfToken: string, body: Record<string, unknown>) =>
+    request<AnimalAssignment>("/assignments/animals", { method: "POST", csrfToken, body: JSON.stringify(body) }),
+  enclosureAssignments: () => request<EnclosureAssignment[]>("/assignments/enclosures"),
+  createEnclosureAssignment: (csrfToken: string, body: Record<string, unknown>) =>
+    request<EnclosureAssignment>("/assignments/enclosures", { method: "POST", csrfToken, body: JSON.stringify(body) }),
+  careTasks: () => request<CareTask[]>("/care-tasks"),
+  createCareTask: (csrfToken: string, body: Record<string, unknown>) =>
+    request<CareTask>("/care-tasks", { method: "POST", csrfToken, body: JSON.stringify(body) }),
+  updateCareTask: (csrfToken: string, id: number, body: Record<string, unknown>) =>
+    request<CareTask>(`/care-tasks/${id}`, { method: "PATCH", csrfToken, body: JSON.stringify(body) }),
+  conditionReports: () => request<AnimalConditionReport[]>("/condition-reports"),
+  createConditionReport: (csrfToken: string, body: Record<string, unknown>) =>
+    request<AnimalConditionReport>("/condition-reports", { method: "POST", csrfToken, body: JSON.stringify(body) }),
+  vetTasks: () => request<VetTask[]>("/vet-tasks"),
+  createVetTask: (csrfToken: string, body: Record<string, unknown>) =>
+    request<VetTask>("/vet-tasks", { method: "POST", csrfToken, body: JSON.stringify(body) }),
+  updateVetTask: (csrfToken: string, id: number, body: Record<string, unknown>) =>
+    request<VetTask>(`/vet-tasks/${id}`, { method: "PATCH", csrfToken, body: JSON.stringify(body) }),
+  medicalReports: () => request<MedicalReport[]>("/medical-reports"),
+  createMedicalReport: (csrfToken: string, body: Record<string, unknown>) =>
+    request<MedicalReport>("/medical-reports", { method: "POST", csrfToken, body: JSON.stringify(body) }),
+  publicMap: () => request<PublicZooMap>("/api/public/map"),
+  economy: () => request<EconomySummary>("/admin/economy"),
+  salarySimulation: (csrfToken: string, body: Record<string, unknown>) =>
+    request<SalarySimulation>("/admin/salary-simulation", { method: "POST", csrfToken, body: JSON.stringify(body) }),
+  feedingOptimization: (csrfToken: string, body: Record<string, unknown>) =>
+    request<FeedingOptimization>("/admin/feeding-optimization", { method: "POST", csrfToken, body: JSON.stringify(body) }),
   auditLogs: () => request<AuditLog[]>("/audit-logs")
 };

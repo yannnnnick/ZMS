@@ -123,7 +123,7 @@ export function AnimalsView({
                 <tr key={animal.id}>
                   <td>
                     <strong>{animal.name}</strong>
-                    <small>{animal.birth_date ?? animal.sex}</small>
+                    <small>{animal.age_years != null ? `${animal.age_years} Jahre` : (animal.birth_date ?? animal.sex)}</small>
                   </td>
                   <td>{animal.species.common_name}</td>
                   <td>{animal.enclosure.name}</td>

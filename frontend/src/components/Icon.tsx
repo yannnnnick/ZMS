@@ -8,6 +8,10 @@ export type IconName =
   | "clock"
   | "heart"
   | "check"
+  | "calendar"
+  | "users"
+  | "map"
+  | "chart"
   | "file"
   | "logout"
   | "login"
@@ -25,6 +29,10 @@ const paths: Record<IconName, ReactNode> = {
   clock: <path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Zm0 4v5l3 2" />,
   heart: <path d="M12 21s-8-4.7-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 6.3-8 11-8 11Z" />,
   check: <path d="m5 12 4 4L19 6" />,
+  calendar: <path d="M7 3v4M17 3v4M4 8h16M6 5h12a2 2 0 0 1 2 2v12H4V7a2 2 0 0 1 2-2Zm2 7h3m2 0h3M8 16h3m2 0h3" />,
+  users: <path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm8-1a3 3 0 1 0 0-6M3 21a6 6 0 0 1 12 0M14 17a5 5 0 0 1 7 4" />,
+  map: <path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3V6Zm6-3v15m6-12v15" />,
+  chart: <path d="M4 19V5M4 19h17M8 16V9m5 7V6m5 10v-4" />,
   file: <path d="M6 3h8l4 4v14H6zM14 3v5h4M8 13h8M8 17h6" />,
   logout: <path d="M10 17v2H5V5h5v2M14 8l4 4-4 4M18 12H9" />,
   login: <path d="M14 7V5h5v14h-5v-2M10 8l4 4-4 4M14 12H5" />,

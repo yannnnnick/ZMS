@@ -240,3 +240,103 @@ def test_viewer_cannot_list_tasks(client: TestClient) -> None:
     viewer_headers = login(client, "viewer@example.test", "Viewer12345!")
     response = client.get("/tasks", headers=viewer_headers)
     assert response.status_code == 403
+
+
+def test_viewer_uses_public_map_instead_of_internal_dashboard(client: TestClient) -> None:
+    viewer_headers = login(client, "viewer@example.test", "Viewer12345!")
+    dashboard_response = client.get("/dashboard", headers=viewer_headers)
+    assert dashboard_response.status_code == 403
+
+    public_response = client.get("/api/public/map")
+    assert public_response.status_code == 200
+    body = public_response.json()
+    assert body["enclosures"]
+    assert "health_status" not in str(body)
+
+
+def test_keeper_and_vet_see_only_assigned_animals(client: TestClient) -> None:
+    admin_headers = login(client, "admin@example.test", "Admin12345!")
+    admin_animals = client.get("/animals", headers=admin_headers).json()
+    assert len(admin_animals) == 5
+
+    keeper_headers = login(client, "keeper@example.test", "Keeper12345!")
+    keeper_animals = client.get("/animals", headers=keeper_headers)
+    assert keeper_animals.status_code == 200
+    assert {animal["id"] for animal in keeper_animals.json()} == {1, 2, 3}
+
+    vet_headers = login(client, "vet@example.test", "Vet123456!")
+    vet_animals = client.get("/animals", headers=vet_headers)
+    assert vet_animals.status_code == 200
+    assert {animal["id"] for animal in vet_animals.json()} == {1, 3, 5}
+
+
+def test_admin_can_create_animal_assignment(client: TestClient) -> None:
+    admin_headers = login(client, "admin@example.test", "Admin12345!")
+    response = client.post(
+        "/assignments/animals",
+        headers=admin_headers,
+        json={"animal_id": 4, "user_id": 2, "role_type": "keeper"},
+    )
+    assert response.status_code == 201
+    assert response.json()["animal_id"] == 4
+
+    keeper_headers = login(client, "keeper@example.test", "Keeper12345!")
+    animals_response = client.get("/animals", headers=keeper_headers)
+    assert animals_response.status_code == 200
+    assert 4 in {animal["id"] for animal in animals_response.json()}
+
+
+def test_keeper_can_complete_care_task_and_report_condition(client: TestClient) -> None:
+    keeper_headers = login(client, "keeper@example.test", "Keeper12345!")
+    tasks_response = client.get("/care-tasks", headers=keeper_headers)
+    assert tasks_response.status_code == 200
+    task_id = tasks_response.json()[0]["id"]
+
+    done_response = client.patch(f"/care-tasks/{task_id}", headers=keeper_headers, json={"status": "done"})
+    assert done_response.status_code == 200
+    assert done_response.json()["status"] == "done"
+
+    report_response = client.post(
+        "/condition-reports",
+        headers=keeper_headers,
+        json={
+            "animal_id": 1,
+            "task_id": task_id,
+            "mood": "normal",
+            "appetite": "low",
+            "movement": "normal",
+            "visible_injuries": False,
+            "needs_vet_check": True,
+            "notes": "<script>alert(1)</script>",
+        },
+    )
+    assert report_response.status_code == 201
+    assert "&lt;script&gt;" in report_response.json()["notes"]
+
+    vet_headers = login(client, "vet@example.test", "Vet123456!")
+    vet_tasks_response = client.get("/vet-tasks", headers=vet_headers)
+    assert vet_tasks_response.status_code == 200
+    assert any("Zustandsbericht" in task["title"] for task in vet_tasks_response.json())
+
+
+def test_admin_economy_and_feeding_optimizer(client: TestClient) -> None:
+    admin_headers = login(client, "admin@example.test", "Admin12345!")
+    economy_response = client.get("/admin/economy", headers=admin_headers)
+    assert economy_response.status_code == 200
+    assert economy_response.json()["visitors_week"] > 0
+
+    users_response = client.get("/users?role=keeper", headers=admin_headers)
+    assert users_response.status_code == 200
+    keeper_id = users_response.json()[0]["id"]
+    salary_response = client.post(
+        "/admin/salary-simulation",
+        headers=admin_headers,
+        json={"user_id": keeper_id, "start_date": str(datetime.now(timezone.utc).date() - timedelta(days=1)), "end_date": str(datetime.now(timezone.utc).date())},
+    )
+    assert salary_response.status_code == 200
+    assert salary_response.json()["is_simulation"] is True
+
+    optimizer_response = client.post("/admin/feeding-optimization", headers=admin_headers, json={"animal_id": 1})
+    assert optimizer_response.status_code == 200
+    assert optimizer_response.json()["success"] is True
+    assert optimizer_response.json()["feeding_plan"]
