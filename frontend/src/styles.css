@@ -30,7 +30,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -309,7 +310,8 @@ td small {
 }
 
 input,
-select {
+select,
+textarea {
   min-height: 42px;
   min-width: 0;
   border: 1px solid var(--line);
@@ -317,6 +319,11 @@ select {
   background: #ffffff;
   color: var(--ink);
   padding: 8px 10px;
+}
+
+textarea {
+  min-height: 42px;
+  resize: vertical;
 }
 
 .primary-button,
@@ -531,4 +538,3 @@ code {
     grid-template-columns: repeat(2, 1fr);
   }
 }
-

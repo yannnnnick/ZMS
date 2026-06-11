@@ -34,20 +34,20 @@ def seed_demo_data(session_factory: sessionmaker[Session]) -> None:
                 email="admin@example.test",
                 display_name="Ada Admin",
                 role=UserRole.admin,
-                password_hash=hash_password("Admin123!"),
+                password_hash=hash_password("Admin12345!"),
             ),
             User(
                 email="keeper@example.test",
                 display_name="Kai Keeper",
                 role=UserRole.keeper,
-                password_hash=hash_password("Keeper123!"),
+                password_hash=hash_password("Keeper12345!"),
             ),
-            User(email="vet@example.test", display_name="Vera Vet", role=UserRole.vet, password_hash=hash_password("Vet123!")),
+            User(email="vet@example.test", display_name="Vera Vet", role=UserRole.vet, password_hash=hash_password("Vet123456!")),
             User(
                 email="viewer@example.test",
                 display_name="Vivian Viewer",
                 role=UserRole.viewer,
-                password_hash=hash_password("Viewer123!"),
+                password_hash=hash_password("Viewer12345!"),
             ),
         ]
         db.add_all(users)
@@ -184,6 +184,8 @@ def seed_demo_data(session_factory: sessionmaker[Session]) -> None:
             ]
         )
         db.commit()
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
-

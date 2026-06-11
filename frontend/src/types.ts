@@ -7,10 +7,9 @@ export type TaskType = "feeding" | "cleaning" | "checkup" | "maintenance";
 export type RecordType = "checkup" | "medication" | "incident" | "note";
 
 export interface Session {
-  access_token: string;
-  token_type: "bearer";
   role: Role;
   display_name: string;
+  csrf_token: string;
 }
 
 export interface User {
@@ -112,4 +111,3 @@ export interface DashboardSummary {
   warning_animals: Animal[];
   enclosure_status: Enclosure[];
 }
-

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timezone
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .models import HealthStatus, RecordType, SafetyStatus, Sex, TaskStatus, TaskType, UserRole
+from .security import validate_password_strength
 
 
 class LoginRequest(BaseModel):
@@ -22,12 +23,17 @@ class LoginRequest(BaseModel):
             raise ValueError("Enter a valid email address.")
         return normalized
 
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        validate_password_strength(value)
+        return value
 
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
+
+class SessionResponse(BaseModel):
     role: UserRole
     display_name: str
+    csrf_token: str
 
 
 class UserRead(BaseModel):
@@ -45,7 +51,7 @@ class SpeciesBase(BaseModel):
     scientific_name: str | None = Field(default=None, max_length=160)
     category: str = Field(min_length=2, max_length=80)
     conservation_status: str | None = Field(default=None, max_length=120)
-    husbandry_notes: str | None = None
+    husbandry_notes: str | None = Field(default=None, max_length=5000)
 
 
 class SpeciesCreate(SpeciesBase):
@@ -63,7 +69,7 @@ class EnclosureBase(BaseModel):
     location: str = Field(min_length=2, max_length=120)
     capacity: int = Field(ge=1, le=10000)
     safety_status: SafetyStatus = SafetyStatus.ok
-    notes: str | None = None
+    notes: str | None = Field(default=None, max_length=5000)
 
 
 class EnclosureCreate(EnclosureBase):
@@ -117,7 +123,7 @@ class FeedingScheduleBase(BaseModel):
     scheduled_time: time
     recurrence: str = Field(min_length=2, max_length=80)
     responsible_role: UserRole
-    notes: str | None = None
+    notes: str | None = Field(default=None, max_length=5000)
 
 
 class FeedingScheduleCreate(FeedingScheduleBase):
@@ -134,9 +140,16 @@ class FeedingScheduleRead(FeedingScheduleBase):
 class HealthRecordBase(BaseModel):
     animal_id: int
     record_type: RecordType
-    description: str = Field(min_length=3)
-    medication: str | None = None
+    description: str = Field(min_length=3, max_length=10000)
+    medication: str | None = Field(default=None, max_length=5000)
     next_check_date: date | None = None
+
+    @field_validator("next_check_date")
+    @classmethod
+    def validate_next_check_date(cls, value: date | None) -> date | None:
+        if value is not None and value < date.today():
+            raise ValueError("Next check date must not be in the past.")
+        return value
 
 
 class HealthRecordCreate(HealthRecordBase):
@@ -155,13 +168,21 @@ class HealthRecordRead(HealthRecordBase):
 
 class TaskBase(BaseModel):
     title: str = Field(min_length=3, max_length=160)
-    description: str | None = None
+    description: str | None = Field(default=None, max_length=5000)
     task_type: TaskType
     assigned_role: UserRole
     due_at: datetime
     status: TaskStatus = TaskStatus.open
     related_animal_id: int | None = None
     related_enclosure_id: int | None = None
+
+    @field_validator("due_at")
+    @classmethod
+    def validate_due_at(cls, value: datetime) -> datetime:
+        comparable = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        if comparable < datetime.now(timezone.utc):
+            raise ValueError("Due date must not be in the past.")
+        return value
 
 
 class TaskCreate(TaskBase):
@@ -170,13 +191,23 @@ class TaskCreate(TaskBase):
 
 class TaskUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=3, max_length=160)
-    description: str | None = None
+    description: str | None = Field(default=None, max_length=5000)
     task_type: TaskType | None = None
     assigned_role: UserRole | None = None
     due_at: datetime | None = None
     status: TaskStatus | None = None
     related_animal_id: int | None = None
     related_enclosure_id: int | None = None
+
+    @field_validator("due_at")
+    @classmethod
+    def validate_due_at(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+        comparable = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        if comparable < datetime.now(timezone.utc):
+            raise ValueError("Due date must not be in the past.")
+        return value
 
 
 class TaskRead(TaskBase):
@@ -192,7 +223,7 @@ class AuditLogRead(BaseModel):
     actor_user_id: int | None
     action: str
     entity_type: str
-    entity_id: str | None
+    entity_id: int | None
     timestamp: datetime
     ip_hash: str | None
     details: dict | None

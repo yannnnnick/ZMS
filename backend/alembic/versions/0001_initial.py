@@ -64,8 +64,8 @@ def upgrade() -> None:
         "animals",
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("name", sa.String(length=120), nullable=False),
-        sa.Column("species_id", sa.Integer(), sa.ForeignKey("species.id"), nullable=False),
-        sa.Column("enclosure_id", sa.Integer(), sa.ForeignKey("enclosures.id"), nullable=False),
+        sa.Column("species_id", sa.Integer(), sa.ForeignKey("species.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("enclosure_id", sa.Integer(), sa.ForeignKey("enclosures.id", ondelete="CASCADE"), nullable=False),
         sa.Column("birth_date", sa.Date(), nullable=True),
         sa.Column("sex", sex, nullable=False),
         sa.Column("health_status", health_status, nullable=False),
@@ -77,7 +77,7 @@ def upgrade() -> None:
     op.create_table(
         "feeding_schedules",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("animal_id", sa.Integer(), sa.ForeignKey("animals.id"), nullable=False),
+        sa.Column("animal_id", sa.Integer(), sa.ForeignKey("animals.id", ondelete="CASCADE"), nullable=False),
         sa.Column("food_type", sa.String(length=120), nullable=False),
         sa.Column("amount", sa.String(length=80), nullable=False),
         sa.Column("scheduled_time", sa.Time(), nullable=False),
@@ -89,7 +89,7 @@ def upgrade() -> None:
     op.create_table(
         "health_records",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("animal_id", sa.Integer(), sa.ForeignKey("animals.id"), nullable=False),
+        sa.Column("animal_id", sa.Integer(), sa.ForeignKey("animals.id", ondelete="CASCADE"), nullable=False),
         sa.Column("created_by_user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False),
         sa.Column("record_type", record_type, nullable=False),
         sa.Column("description", sa.Text(), nullable=False),
@@ -107,24 +107,36 @@ def upgrade() -> None:
         sa.Column("assigned_role", user_role, nullable=False),
         sa.Column("due_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("status", task_status, nullable=False),
-        sa.Column("related_animal_id", sa.Integer(), sa.ForeignKey("animals.id"), nullable=True),
-        sa.Column("related_enclosure_id", sa.Integer(), sa.ForeignKey("enclosures.id"), nullable=True),
+        sa.Column("related_animal_id", sa.Integer(), sa.ForeignKey("animals.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("related_enclosure_id", sa.Integer(), sa.ForeignKey("enclosures.id", ondelete="SET NULL"), nullable=True),
     )
 
     op.create_table(
         "audit_logs",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("actor_user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=True),
+        sa.Column("actor_user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
         sa.Column("action", sa.String(length=80), nullable=False),
         sa.Column("entity_type", sa.String(length=80), nullable=False),
-        sa.Column("entity_id", sa.String(length=80), nullable=True),
+        sa.Column("entity_id", sa.Integer(), nullable=True),
         sa.Column("timestamp", sa.DateTime(timezone=True), nullable=False),
         sa.Column("ip_hash", sa.String(length=128), nullable=True),
         sa.Column("details", sa.JSON(), nullable=True),
     )
+    op.create_index("ix_animals_active", "animals", ["active"])
+    op.create_index("ix_animals_health_status", "animals", ["health_status"])
+    op.create_index("ix_animals_active_health_status", "animals", ["active", "health_status"])
+    op.create_index("ix_tasks_status", "tasks", ["status"])
+    op.create_index("ix_audit_logs_timestamp", "audit_logs", ["timestamp"])
+    op.create_index("ix_enclosures_safety_status", "enclosures", ["safety_status"])
 
 
 def downgrade() -> None:
+    op.drop_index("ix_enclosures_safety_status", table_name="enclosures")
+    op.drop_index("ix_audit_logs_timestamp", table_name="audit_logs")
+    op.drop_index("ix_tasks_status", table_name="tasks")
+    op.drop_index("ix_animals_active_health_status", table_name="animals")
+    op.drop_index("ix_animals_health_status", table_name="animals")
+    op.drop_index("ix_animals_active", table_name="animals")
     op.drop_table("audit_logs")
     op.drop_table("tasks")
     op.drop_table("health_records")
@@ -134,4 +146,3 @@ def downgrade() -> None:
     op.drop_table("species")
     op.drop_index(op.f("ix_users_email"), table_name="users")
     op.drop_table("users")
-
