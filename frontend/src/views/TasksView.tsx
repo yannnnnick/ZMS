@@ -4,6 +4,7 @@ import { api } from "../api";
 import { TaskList } from "../components/Lists";
 import { Icon } from "../components/Icon";
 import { Panel } from "../components/Panel";
+import { useMutation } from "../hooks/useMutation";
 import type { Animal, Enclosure, Role, Session, TaskType, ZooTask } from "../types";
 import { optionalText } from "./formHelpers";
 
@@ -32,6 +33,7 @@ export function TasksView({
 }) {
   const [form, setForm] = useState(emptyTaskForm);
   const canEdit = ["admin", "keeper", "vet"].includes(session.role);
+  const { isSubmitting, error, run } = useMutation();
 
   const defaultDueAt = useMemo(() => {
     const next = new Date(Date.now() + 60 * 60 * 1000);
@@ -45,15 +47,18 @@ export function TasksView({
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    await api.createTask(session.csrf_token, {
-      title: form.title,
-      description: optionalText(form.description),
-      task_type: form.task_type,
-      assigned_role: form.assigned_role,
-      due_at: new Date(form.due_at).toISOString(),
-      related_animal_id: form.related_animal_id ? Number(form.related_animal_id) : null,
-      related_enclosure_id: form.related_enclosure_id ? Number(form.related_enclosure_id) : null
-    });
+    const ok = await run(() =>
+      api.createTask(session.csrf_token, {
+        title: form.title,
+        description: optionalText(form.description),
+        task_type: form.task_type,
+        assigned_role: form.assigned_role,
+        due_at: new Date(form.due_at).toISOString(),
+        related_animal_id: form.related_animal_id ? Number(form.related_animal_id) : null,
+        related_enclosure_id: form.related_enclosure_id ? Number(form.related_enclosure_id) : null
+      })
+    );
+    if (!ok) return;
     setForm({ ...emptyTaskForm, due_at: defaultDueAt });
     await reload();
   };
@@ -112,10 +117,11 @@ export function TasksView({
               ))}
             </select>
             <input value={form.due_at} onChange={(event) => setForm({ ...form, due_at: event.target.value })} type="datetime-local" required />
-            <button className="primary-button" type="submit">
+            <button className="primary-button" type="submit" disabled={isSubmitting}>
               <Icon name="plus" />
-              Anlegen
+              {isSubmitting ? "Speichere..." : "Anlegen"}
             </button>
+            {error ? <p className="form-error">{error}</p> : null}
           </form>
         </Panel>
       ) : null}

@@ -5,6 +5,7 @@ import { healthLabels } from "../constants";
 import { Icon } from "../components/Icon";
 import { Panel } from "../components/Panel";
 import { StatusChip, toneForHealth } from "../components/StatusChip";
+import { useMutation } from "../hooks/useMutation";
 import type { Animal, Enclosure, HealthStatus, Session, Sex, Species } from "../types";
 
 const emptyAnimalForm = {
@@ -32,15 +33,20 @@ export function AnimalsView({
   const [form, setForm] = useState(emptyAnimalForm);
   const canCreate = ["admin", "keeper"].includes(session.role);
   const canPatchHealth = ["admin", "keeper", "vet"].includes(session.role);
+  const { isSubmitting, error, run } = useMutation();
+  const rowAction = useMutation();
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    await api.createAnimal(session.csrf_token, {
-      ...form,
-      species_id: Number(form.species_id),
-      enclosure_id: Number(form.enclosure_id),
-      birth_date: form.birth_date || null
-    });
+    const ok = await run(() =>
+      api.createAnimal(session.csrf_token, {
+        ...form,
+        species_id: Number(form.species_id),
+        enclosure_id: Number(form.enclosure_id),
+        birth_date: form.birth_date || null
+      })
+    );
+    if (!ok) return;
     setForm(emptyAnimalForm);
     await reload();
   };
@@ -98,13 +104,16 @@ export function AnimalsView({
               <option value="female">Weiblich</option>
               <option value="male">Maennlich</option>
             </select>
-            <button className="primary-button" type="submit">
+            <button className="primary-button" type="submit" disabled={isSubmitting}>
               <Icon name="plus" />
-              Anlegen
+              {isSubmitting ? "Speichere..." : "Anlegen"}
             </button>
+            {error ? <p className="form-error">{error}</p> : null}
           </form>
         </Panel>
       ) : null}
+
+      {rowAction.error ? <p className="form-error">{rowAction.error}</p> : null}
 
       <Panel title="Tierliste" icon="paw">
         <div className="table-wrap">
@@ -135,9 +144,13 @@ export function AnimalsView({
                       <select
                         value={animal.health_status}
                         aria-label={`Gesundheitsstatus fuer ${animal.name}`}
+                        disabled={rowAction.isSubmitting}
                         onChange={async (event) => {
-                          await api.updateAnimal(session.csrf_token, animal.id, { health_status: event.target.value });
-                          await reload();
+                          const value = event.target.value;
+                          const ok = await rowAction.run(() =>
+                            api.updateAnimal(session.csrf_token, animal.id, { health_status: value })
+                          );
+                          if (ok) await reload();
                         }}
                       >
                         {Object.entries(healthLabels).map(([key, label]) => (
@@ -152,9 +165,10 @@ export function AnimalsView({
                         className="icon-button danger"
                         title="Archivieren"
                         type="button"
+                        disabled={rowAction.isSubmitting}
                         onClick={async () => {
-                          await api.deleteAnimal(session.csrf_token, animal.id);
-                          await reload();
+                          const ok = await rowAction.run(() => api.deleteAnimal(session.csrf_token, animal.id));
+                          if (ok) await reload();
                         }}
                       >
                         <Icon name="trash" />

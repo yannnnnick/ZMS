@@ -16,8 +16,22 @@ logger = logging.getLogger(__name__)
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./zoo.db")
 
-connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
-engine = create_engine(DATABASE_URL, connect_args=connect_args)
+_is_sqlite = DATABASE_URL.startswith("sqlite")
+connect_args = {"check_same_thread": False} if _is_sqlite else {}
+
+# SQLite ignores server-side pool tuning, so only apply pool settings for real
+# client/server databases (e.g. PostgreSQL) where connection churn and stale
+# connections are a genuine concern under load.
+engine_kwargs: dict[str, object] = {"connect_args": connect_args}
+if not _is_sqlite:
+    engine_kwargs.update(
+        pool_size=int(os.getenv("DB_POOL_SIZE", "10")),
+        max_overflow=int(os.getenv("DB_MAX_OVERFLOW", "20")),
+        pool_pre_ping=True,
+        pool_recycle=int(os.getenv("DB_POOL_RECYCLE_SECONDS", "3600")),
+    )
+
+engine = create_engine(DATABASE_URL, **engine_kwargs)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 if DATABASE_URL.startswith("sqlite"):
@@ -34,6 +48,13 @@ def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        # Any exception escaping a request handler (HTTPException or otherwise) is
+        # thrown back into this generator by FastAPI's dependency machinery. Rolling
+        # back here guarantees no half-applied write transaction is left hanging,
+        # removing the need for per-endpoint try/except/rollback blocks.
+        db.rollback()
+        raise
     finally:
         db.close()
 

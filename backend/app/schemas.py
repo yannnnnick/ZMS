@@ -94,6 +94,19 @@ class SpeciesCreate(SpeciesBase):
     pass
 
 
+class SpeciesUpdate(BaseModel):
+    common_name: str | None = Field(default=None, min_length=2, max_length=120)
+    scientific_name: str | None = Field(default=None, max_length=160)
+    category: str | None = Field(default=None, min_length=2, max_length=80)
+    conservation_status: str | None = Field(default=None, max_length=120)
+    husbandry_notes: str | None = Field(default=None, max_length=5000)
+
+    @field_validator("common_name", "scientific_name", "category", "conservation_status", "husbandry_notes")
+    @classmethod
+    def sanitize_text_fields(cls, value: str | None) -> str | None:
+        return clean_text(value)
+
+
 class SpeciesRead(SpeciesBase):
     model_config = ConfigDict(from_attributes=True)
 
@@ -122,6 +135,26 @@ class EnclosureBase(BaseModel):
 
 class EnclosureCreate(EnclosureBase):
     pass
+
+
+class EnclosureUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=2, max_length=120)
+    location: str | None = Field(default=None, min_length=2, max_length=120)
+    capacity: int | None = Field(default=None, ge=1, le=10000)
+    safety_status: SafetyStatus | None = None
+    notes: str | None = Field(default=None, max_length=5000)
+    map_x: int | None = Field(default=None, ge=0, le=1000)
+    map_y: int | None = Field(default=None, ge=0, le=1000)
+    map_width: int | None = Field(default=None, ge=1, le=1000)
+    map_height: int | None = Field(default=None, ge=1, le=1000)
+    public_name: str | None = Field(default=None, max_length=120)
+    public_description: str | None = Field(default=None, max_length=5000)
+    is_public_visible: bool | None = None
+
+    @field_validator("name", "location", "notes", "public_name", "public_description")
+    @classmethod
+    def sanitize_text_fields(cls, value: str | None) -> str | None:
+        return clean_text(value)
 
 
 class EnclosureRead(EnclosureBase):
@@ -189,6 +222,20 @@ class FeedingScheduleCreate(FeedingScheduleBase):
     pass
 
 
+class FeedingScheduleUpdate(BaseModel):
+    food_type: str | None = Field(default=None, min_length=2, max_length=120)
+    amount: str | None = Field(default=None, min_length=1, max_length=80)
+    scheduled_time: time | None = None
+    recurrence: str | None = Field(default=None, min_length=2, max_length=80)
+    responsible_role: UserRole | None = None
+    notes: str | None = Field(default=None, max_length=5000)
+
+    @field_validator("food_type", "amount", "recurrence", "notes")
+    @classmethod
+    def sanitize_text_fields(cls, value: str | None) -> str | None:
+        return clean_text(value)
+
+
 class FeedingScheduleRead(FeedingScheduleBase):
     model_config = ConfigDict(from_attributes=True)
 
@@ -218,6 +265,25 @@ class HealthRecordBase(BaseModel):
 
 class HealthRecordCreate(HealthRecordBase):
     pass
+
+
+class HealthRecordUpdate(BaseModel):
+    record_type: RecordType | None = None
+    description: str | None = Field(default=None, min_length=3, max_length=10000)
+    medication: str | None = Field(default=None, max_length=5000)
+    next_check_date: date | None = None
+
+    @field_validator("description", "medication")
+    @classmethod
+    def sanitize_text_fields(cls, value: str | None) -> str | None:
+        return clean_text(value)
+
+    @field_validator("next_check_date")
+    @classmethod
+    def validate_next_check_date(cls, value: date | None) -> date | None:
+        if value is not None and value < date.today():
+            raise ValueError("Next check date must not be in the past.")
+        return value
 
 
 class HealthRecordRead(HealthRecordBase):

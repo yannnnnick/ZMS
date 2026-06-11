@@ -153,7 +153,7 @@ export const api = {
   medicalReports: () => request<MedicalReport[]>("/medical-reports"),
   createMedicalReport: (csrfToken: string, body: Record<string, unknown>) =>
     request<MedicalReport>("/medical-reports", { method: "POST", csrfToken, body: JSON.stringify(body) }),
-  publicMap: () => request<PublicZooMap>("/api/public/map"),
+  publicMap: () => request<PublicZooMap>("/public/map"),
   economy: () => request<EconomySummary>("/admin/economy"),
   salarySimulation: (csrfToken: string, body: Record<string, unknown>) =>
     request<SalarySimulation>("/admin/salary-simulation", { method: "POST", csrfToken, body: JSON.stringify(body) }),

@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from sqlalchemy import and_, delete, func, or_, select, update
+from sqlalchemy import and_, or_, update
 from sqlalchemy.orm import Session, joinedload
 
 from .database import get_db, init_db
@@ -65,20 +65,24 @@ from .schemas import (
     EnclosureAssignmentCreate,
     EnclosureAssignmentRead,
     EnclosureRead,
+    EnclosureUpdate,
     EconomySummary,
     FeedingScheduleCreate,
     FeedingScheduleRead,
+    FeedingScheduleUpdate,
     FeedingOptimizationRequest,
     FeedingOptimizationResponse,
     FeedingOptimizationItem,
     HealthRecordCreate,
     HealthRecordRead,
+    HealthRecordUpdate,
     LoginRequest,
     MedicalReportCreate,
     MedicalReportRead,
     PublicZooMapRead,
     SpeciesCreate,
     SpeciesRead,
+    SpeciesUpdate,
     TaskCreate,
     TaskRead,
     TaskUpdate,
@@ -94,6 +98,7 @@ from .security import (
     clear_failed_logins,
     clear_auth_cookies,
     consume_login_attempt,
+    enforce_public_rate_limit,
     create_csrf_token,
     create_access_token,
     CSRF_COOKIE_NAME,
@@ -110,6 +115,15 @@ logger = logging.getLogger(__name__)
 DEFAULT_PAGE_LIMIT = 100
 MAX_PAGE_LIMIT = 200
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+
+# Ordered from least to most severe. Used to ensure automatic side effects never
+# silently downgrade an animal that is already in a more serious health state.
+HEALTH_SEVERITY = {
+    HealthStatus.healthy: 0,
+    HealthStatus.observation: 1,
+    HealthStatus.treatment: 2,
+    HealthStatus.critical: 3,
+}
 
 
 def parse_cors_origins(raw_origins: str) -> list[str]:
@@ -364,7 +378,24 @@ def create_app(seed: bool = True, init_database: bool = True) -> FastAPI:
         db: Session = Depends(get_db),
     ) -> None:
         animal = animal_or_404(db, animal_id)
-        db.execute(delete(FeedingSchedule).where(FeedingSchedule.animal_id == animal.id))
+        open_care = (
+            db.query(CareTask)
+            .filter(CareTask.animal_id == animal.id, CareTask.status == CareTaskStatus.open)
+            .count()
+        )
+        open_vet = (
+            db.query(VetTask)
+            .filter(VetTask.animal_id == animal.id, VetTask.status == VetTaskStatus.open)
+            .count()
+        )
+        if open_care or open_vet:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Cannot archive an animal that still has open care or vet tasks",
+            )
+        # Soft-delete only: setting active=False hides the animal and (via the active
+        # filter on related queries) its feeding schedules, without destroying historical
+        # records. Generic tasks lose their animal reference to avoid dangling pointers.
         db.execute(update(Task).where(Task.related_animal_id == animal.id).values(related_animal_id=None))
         animal.active = False
         write_audit_log(db, current_user, "delete", "animal", animal.id, {"soft_delete": True})
@@ -395,6 +426,42 @@ def create_app(seed: bool = True, init_database: bool = True) -> FastAPI:
         db.refresh(species)
         return species
 
+    @app.patch("/species/{species_id}", response_model=SpeciesRead)
+    def update_species(
+        species_id: int,
+        payload: SpeciesUpdate,
+        _csrf: None = Depends(require_csrf),
+        current_user: User = Depends(require_roles(UserRole.admin)),
+        db: Session = Depends(get_db),
+    ) -> Species:
+        species = species_or_404(db, species_id)
+        changes = payload.model_dump(exclude_unset=True)
+        for key, value in changes.items():
+            setattr(species, key, value)
+        write_audit_log(db, current_user, "update", "species", species.id, changes)
+        db.commit()
+        db.refresh(species)
+        return species
+
+    @app.delete("/species/{species_id}", status_code=status.HTTP_204_NO_CONTENT)
+    def delete_species(
+        species_id: int,
+        _csrf: None = Depends(require_csrf),
+        current_user: User = Depends(require_roles(UserRole.admin)),
+        db: Session = Depends(get_db),
+    ) -> None:
+        species = species_or_404(db, species_id)
+        dependent_animals = db.query(Animal).filter(Animal.species_id == species.id).count()
+        if dependent_animals:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Cannot delete a species that still has animals",
+            )
+        db.delete(species)
+        write_audit_log(db, current_user, "delete", "species", species.id, {"common_name": species.common_name})
+        db.commit()
+        return None
+
     @app.get("/enclosures", response_model=list[EnclosureRead])
     def list_enclosures(
         current_user: User = Depends(require_roles(UserRole.admin, UserRole.keeper, UserRole.vet)),
@@ -418,6 +485,42 @@ def create_app(seed: bool = True, init_database: bool = True) -> FastAPI:
         db.commit()
         db.refresh(enclosure)
         return enclosure
+
+    @app.patch("/enclosures/{enclosure_id}", response_model=EnclosureRead)
+    def update_enclosure(
+        enclosure_id: int,
+        payload: EnclosureUpdate,
+        _csrf: None = Depends(require_csrf),
+        current_user: User = Depends(require_roles(UserRole.admin)),
+        db: Session = Depends(get_db),
+    ) -> Enclosure:
+        enclosure = enclosure_or_404(db, enclosure_id)
+        changes = payload.model_dump(exclude_unset=True)
+        for key, value in changes.items():
+            setattr(enclosure, key, value)
+        write_audit_log(db, current_user, "update", "enclosure", enclosure.id, changes)
+        db.commit()
+        db.refresh(enclosure)
+        return enclosure
+
+    @app.delete("/enclosures/{enclosure_id}", status_code=status.HTTP_204_NO_CONTENT)
+    def delete_enclosure(
+        enclosure_id: int,
+        _csrf: None = Depends(require_csrf),
+        current_user: User = Depends(require_roles(UserRole.admin)),
+        db: Session = Depends(get_db),
+    ) -> None:
+        enclosure = enclosure_or_404(db, enclosure_id)
+        dependent_animals = db.query(Animal).filter(Animal.enclosure_id == enclosure.id).count()
+        if dependent_animals:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Cannot delete an enclosure that still houses animals",
+            )
+        db.delete(enclosure)
+        write_audit_log(db, current_user, "delete", "enclosure", enclosure.id, {"name": enclosure.name})
+        db.commit()
+        return None
 
     @app.get("/feeding-schedules", response_model=list[FeedingScheduleRead])
     def list_feeding_schedules(
@@ -450,6 +553,36 @@ def create_app(seed: bool = True, init_database: bool = True) -> FastAPI:
         db.commit()
         db.refresh(schedule)
         return schedule
+
+    @app.patch("/feeding-schedules/{schedule_id}", response_model=FeedingScheduleRead)
+    def update_feeding_schedule(
+        schedule_id: int,
+        payload: FeedingScheduleUpdate,
+        _csrf: None = Depends(require_csrf),
+        current_user: User = Depends(require_roles(UserRole.admin, UserRole.keeper)),
+        db: Session = Depends(get_db),
+    ) -> FeedingSchedule:
+        schedule = feeding_schedule_or_404(db, schedule_id, current_user=current_user)
+        changes = payload.model_dump(exclude_unset=True)
+        for key, value in changes.items():
+            setattr(schedule, key, value)
+        write_audit_log(db, current_user, "update", "feeding_schedule", schedule.id, changes)
+        db.commit()
+        db.refresh(schedule)
+        return schedule
+
+    @app.delete("/feeding-schedules/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
+    def delete_feeding_schedule(
+        schedule_id: int,
+        _csrf: None = Depends(require_csrf),
+        current_user: User = Depends(require_roles(UserRole.admin, UserRole.keeper)),
+        db: Session = Depends(get_db),
+    ) -> None:
+        schedule = feeding_schedule_or_404(db, schedule_id, current_user=current_user)
+        db.delete(schedule)
+        write_audit_log(db, current_user, "delete", "feeding_schedule", schedule.id, {"animal_id": schedule.animal_id})
+        db.commit()
+        return None
 
     @app.get("/health-records", response_model=list[HealthRecordRead])
     def list_health_records(
@@ -487,6 +620,36 @@ def create_app(seed: bool = True, init_database: bool = True) -> FastAPI:
         db.refresh(record)
         return record
 
+    @app.patch("/health-records/{record_id}", response_model=HealthRecordRead)
+    def update_health_record(
+        record_id: int,
+        payload: HealthRecordUpdate,
+        _csrf: None = Depends(require_csrf),
+        current_user: User = Depends(require_roles(UserRole.admin, UserRole.vet)),
+        db: Session = Depends(get_db),
+    ) -> HealthRecord:
+        record = health_record_or_404(db, record_id, current_user=current_user)
+        changes = payload.model_dump(exclude_unset=True)
+        for key, value in changes.items():
+            setattr(record, key, value)
+        write_audit_log(db, current_user, "update", "health_record", record.id, changes)
+        db.commit()
+        db.refresh(record)
+        return record
+
+    @app.delete("/health-records/{record_id}", status_code=status.HTTP_204_NO_CONTENT)
+    def delete_health_record(
+        record_id: int,
+        _csrf: None = Depends(require_csrf),
+        current_user: User = Depends(require_roles(UserRole.admin)),
+        db: Session = Depends(get_db),
+    ) -> None:
+        record = health_record_or_404(db, record_id, current_user=current_user)
+        db.delete(record)
+        write_audit_log(db, current_user, "delete", "health_record", record.id, {"animal_id": record.animal_id})
+        db.commit()
+        return None
+
     @app.get("/tasks", response_model=list[TaskRead])
     def list_tasks(
         current_user: User = Depends(require_roles(UserRole.admin, UserRole.keeper, UserRole.vet)),
@@ -494,7 +657,17 @@ def create_app(seed: bool = True, init_database: bool = True) -> FastAPI:
         offset: int = Query(0, ge=0),
         limit: int = Query(DEFAULT_PAGE_LIMIT, ge=1, le=MAX_PAGE_LIMIT),
     ) -> Sequence[Task]:
-        return tasks_for_user(db, current_user).order_by(Task.due_at.asc()).offset(offset).limit(limit).all()
+        return (
+            tasks_for_user(db, current_user)
+            .options(
+                joinedload(Task.related_animal).joinedload(Animal.species),
+                joinedload(Task.related_enclosure),
+            )
+            .order_by(Task.due_at.asc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
 
     @app.post("/tasks", response_model=TaskRead, status_code=status.HTTP_201_CREATED)
     def create_task(
@@ -663,6 +836,8 @@ def create_app(seed: bool = True, init_database: bool = True) -> FastAPI:
         current_user: User = Depends(require_roles(UserRole.admin, UserRole.keeper)),
         db: Session = Depends(get_db),
         due_date: date | None = Query(default=None),
+        offset: int = Query(0, ge=0),
+        limit: int = Query(DEFAULT_PAGE_LIMIT, ge=1, le=MAX_PAGE_LIMIT),
     ) -> Sequence[CareTask]:
         query = care_tasks_for_user(db, current_user).options(
             joinedload(CareTask.animal).joinedload(Animal.species),
@@ -672,7 +847,7 @@ def create_app(seed: bool = True, init_database: bool = True) -> FastAPI:
         )
         if due_date is not None:
             query = query.filter(CareTask.due_date == due_date)
-        return query.order_by(CareTask.due_date.asc(), CareTask.due_time.asc()).all()
+        return query.order_by(CareTask.due_date.asc(), CareTask.due_time.asc()).offset(offset).limit(limit).all()
 
     @app.post("/care-tasks", response_model=CareTaskRead, status_code=status.HTTP_201_CREATED)
     def create_care_task(
@@ -744,20 +919,28 @@ def create_app(seed: bool = True, init_database: bool = True) -> FastAPI:
             task.status = CareTaskStatus.done
             task.completed_at = utcnow()
         if payload.needs_vet_check:
-            animal.health_status = HealthStatus.observation if animal.health_status == HealthStatus.healthy else animal.health_status
             vet_user = assigned_vet_for_animal(db, animal.id)
-            if vet_user is not None:
-                db.add(
-                    VetTask(
-                        title=f"Zustandsbericht pruefen - {animal.name}",
-                        description=payload.notes,
-                        animal_id=animal.id,
-                        assigned_to_user_id=vet_user.id,
-                        priority=VetTaskPriority.high if payload.visible_injuries else VetTaskPriority.medium,
-                        due_date=date.today() + timedelta(days=1),
-                        created_by=current_user.id,
-                    )
+            if vet_user is None:
+                # Fail loudly instead of silently dropping the escalation: a keeper must
+                # never believe a vet was notified when no vet is available for the animal.
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="No veterinarian is assigned to this animal; cannot escalate for a vet check",
                 )
+            animal.health_status = (
+                HealthStatus.observation if animal.health_status == HealthStatus.healthy else animal.health_status
+            )
+            db.add(
+                VetTask(
+                    title=f"Zustandsbericht pruefen - {animal.name}",
+                    description=payload.notes,
+                    animal_id=animal.id,
+                    assigned_to_user_id=vet_user.id,
+                    priority=VetTaskPriority.high if payload.visible_injuries else VetTaskPriority.medium,
+                    due_date=date.today() + timedelta(days=1),
+                    created_by=current_user.id,
+                )
+            )
         db.flush()
         write_audit_log(
             db,
@@ -790,6 +973,8 @@ def create_app(seed: bool = True, init_database: bool = True) -> FastAPI:
         current_user: User = Depends(require_roles(UserRole.admin, UserRole.vet)),
         db: Session = Depends(get_db),
         due_date: date | None = Query(default=None),
+        offset: int = Query(0, ge=0),
+        limit: int = Query(DEFAULT_PAGE_LIMIT, ge=1, le=MAX_PAGE_LIMIT),
     ) -> Sequence[VetTask]:
         query = vet_tasks_for_user(db, current_user).options(
             joinedload(VetTask.animal).joinedload(Animal.species),
@@ -798,7 +983,7 @@ def create_app(seed: bool = True, init_database: bool = True) -> FastAPI:
         )
         if due_date is not None:
             query = query.filter(VetTask.due_date == due_date)
-        return query.order_by(VetTask.due_date.asc(), VetTask.id.asc()).all()
+        return query.order_by(VetTask.due_date.asc(), VetTask.id.asc()).offset(offset).limit(limit).all()
 
     @app.post("/vet-tasks", response_model=VetTaskRead, status_code=status.HTTP_201_CREATED)
     def create_vet_task(
@@ -874,7 +1059,13 @@ def create_app(seed: bool = True, init_database: bool = True) -> FastAPI:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Task belongs to another animal")
             task.status = VetTaskStatus.done
         report = MedicalReport(**payload.model_dump(), vet_user_id=current_user.id)
-        animal.health_status = HealthStatus.treatment if payload.follow_up_required else HealthStatus.observation
+        # A medical report reflects a finding, so it may escalate the health status, but it
+        # must never silently de-escalate (e.g. a `critical` animal must not drop to
+        # `observation` just because this report needs no follow-up). Vets can still lower
+        # the status deliberately via the dedicated animal-update endpoint.
+        target_status = HealthStatus.treatment if payload.follow_up_required else HealthStatus.observation
+        if HEALTH_SEVERITY[target_status] >= HEALTH_SEVERITY[animal.health_status]:
+            animal.health_status = target_status
         db.add(report)
         db.flush()
         write_audit_log(db, current_user, "create", "medical_report", report.id, {"animal_id": report.animal_id})
@@ -882,8 +1073,11 @@ def create_app(seed: bool = True, init_database: bool = True) -> FastAPI:
         db.refresh(report)
         return report
 
-    @app.get("/api/public/map", response_model=PublicZooMapRead)
-    def public_zoo_map(db: Session = Depends(get_db)) -> dict[str, object]:
+    @app.get("/public/map", response_model=PublicZooMapRead)
+    def public_zoo_map(
+        _rate_limit: None = Depends(enforce_public_rate_limit),
+        db: Session = Depends(get_db),
+    ) -> dict[str, object]:
         enclosures = (
             db.query(Enclosure)
             .options(joinedload(Enclosure.animals).joinedload(Animal.species))
@@ -950,9 +1144,19 @@ def create_app(seed: bool = True, init_database: bool = True) -> FastAPI:
         visitors_today = sum(item.visitor_count for item in visitor_stats if item.date == today)
         visitors_week = sum(item.visitor_count for item in visitor_stats)
         ticket_revenue_week = sum(item.ticket_revenue for item in visitor_stats)
-        payroll = sum((profile.monthly_base_salary or profile.hourly_rate * 160) for profile in db.query(SalaryProfile).filter(SalaryProfile.active.is_(True)).all())
+        payroll = sum(
+            (
+                profile.monthly_base_salary
+                if profile.monthly_base_salary is not None
+                else profile.hourly_rate * 160
+            )
+            for profile in db.query(SalaryProfile).filter(SalaryProfile.active.is_(True)).all()
+        )
         food_value = sum(item.cost_per_unit * item.available_quantity for item in db.query(FoodItem).all())
-        open_tasks = db.query(Task).filter(Task.status != TaskStatus.done).count() + db.query(CareTask).filter(CareTask.status == CareTaskStatus.open).count()
+        open_tasks = (
+            db.query(Task).filter(Task.status != TaskStatus.done).count()
+            + db.query(CareTask).filter(CareTask.status != CareTaskStatus.done).count()
+        )
         open_vet_cases = db.query(VetTask).filter(VetTask.status == VetTaskStatus.open).count()
         return EconomySummary(
             visitors_today=visitors_today,
@@ -986,7 +1190,8 @@ def create_app(seed: bool = True, init_database: bool = True) -> FastAPI:
         minutes = sum(session.duration_minutes or 0 for session in sessions)
         hours = round(minutes / 60, 2)
         gross_pay = int(round(hours * profile.hourly_rate))
-        estimated_deductions = int(round(gross_pay * ((profile.tax_rate_percent or 20) / 100)))
+        tax_rate_percent = profile.tax_rate_percent if profile.tax_rate_percent is not None else 20
+        estimated_deductions = int(round(gross_pay * (tax_rate_percent / 100)))
         return SalarySimulationResponse(
             user=user,
             hours=hours,
@@ -1009,7 +1214,14 @@ def create_app(seed: bool = True, init_database: bool = True) -> FastAPI:
             .filter(AnimalNutritionRequirement.species_id == animal.species_id)
             .first()
         )
-        food_items = db.query(FoodItem).filter(FoodItem.available_quantity > 0).all()
+        food_items = (
+            db.query(FoodItem)
+            .filter(
+                FoodItem.available_quantity > 0,
+                or_(FoodItem.calories_per_unit > 0, FoodItem.protein_per_unit > 0),
+            )
+            .all()
+        )
         if requirement is None or not food_items:
             return FeedingOptimizationResponse(
                 success=False,
@@ -1199,6 +1411,22 @@ def enclosure_or_404(db: Session, enclosure_id: int) -> Enclosure:
     return enclosure
 
 
+def feeding_schedule_or_404(db: Session, schedule_id: int, *, current_user: User | None = None) -> FeedingSchedule:
+    query = feeding_schedules_for_user(db, current_user) if current_user is not None else db.query(FeedingSchedule)
+    schedule = query.filter(FeedingSchedule.id == schedule_id).first()
+    if schedule is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Feeding schedule not found")
+    return schedule
+
+
+def health_record_or_404(db: Session, record_id: int, *, current_user: User | None = None) -> HealthRecord:
+    query = health_records_for_user(db, current_user) if current_user is not None else db.query(HealthRecord)
+    record = query.filter(HealthRecord.id == record_id).first()
+    if record is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Health record not found")
+    return record
+
+
 def task_or_404(db: Session, task_id: int, *, current_user: User | None = None) -> Task:
     task = db.get(Task, task_id)
     if task is None:
@@ -1227,6 +1455,9 @@ def vet_task_or_404(db: Session, task_id: int, *, current_user: User | None = No
 
 
 def assigned_vet_for_animal(db: Session, animal_id: int) -> User | None:
+    # Only an explicitly assigned, active vet is returned. There is deliberately no
+    # "first available vet" fallback: silently overloading an arbitrary vet hides the
+    # fact that an animal lacks proper veterinary coverage.
     assignment = (
         db.query(AnimalAssignment)
         .join(AnimalAssignment.user)
@@ -1239,9 +1470,7 @@ def assigned_vet_for_animal(db: Session, animal_id: int) -> User | None:
         .order_by(AnimalAssignment.created_at.asc())
         .first()
     )
-    if assignment is not None:
-        return assignment.user
-    return db.query(User).filter(User.role == UserRole.vet, User.is_active.is_(True)).order_by(User.id.asc()).first()
+    return assignment.user if assignment is not None else None
 
 
 def ensure_species_and_enclosure(db: Session, species_id: int, enclosure_id: int) -> None:

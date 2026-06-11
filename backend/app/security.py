@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import os
 import secrets
 import time
@@ -38,14 +39,34 @@ LOGIN_WINDOW_SECONDS = int(os.getenv("LOGIN_WINDOW_SECONDS", "300"))
 MAX_RATE_LIMIT_IDENTIFIERS = int(os.getenv("MAX_RATE_LIMIT_IDENTIFIERS", "10000"))
 MAX_AUDIT_DETAILS_BYTES = 10_000
 MAX_AUDIT_DETAILS_DEPTH = 3
-SENSITIVE_DETAIL_KEYS = {"password", "password_hash", "token", "access_token", "secret", "cookie", "authorization"}
+SENSITIVE_DETAIL_KEYS = {
+    "password",
+    "password_hash",
+    "token",
+    "access_token",
+    "secret",
+    "cookie",
+    "authorization",
+    "email",
+}
+
+# Pepper used to keep hashed IP addresses (a small, enumerable keyspace) from being
+# trivially reversible via a rainbow table. Falls back to JWT_SECRET so deployments do
+# not need an extra variable, but a dedicated IP_HASH_PEPPER is recommended.
+IP_HASH_PEPPER = (os.getenv("IP_HASH_PEPPER") or JWT_SECRET).encode("utf-8")
+
+PUBLIC_RATE_LIMIT = int(os.getenv("PUBLIC_RATE_LIMIT", "60"))
+PUBLIC_RATE_WINDOW_SECONDS = int(os.getenv("PUBLIC_RATE_WINDOW_SECONDS", "60"))
 
 _login_failures: dict[str, deque[float]] = {}
 _revoked_tokens: dict[str, float] = {}
+_public_hits: dict[str, deque[float]] = {}
 _login_lock = RLock()
 _revocation_lock = RLock()
+_public_lock = RLock()
 _last_rate_limit_cleanup_at = 0.0
 _last_revocation_cleanup_at = 0.0
+_last_public_cleanup_at = 0.0
 
 
 def hash_password(password: str) -> str:
@@ -172,6 +193,26 @@ def clear_failed_logins(identifier: str) -> None:
         _login_failures.pop(identifier, None)
 
 
+def enforce_public_rate_limit(request: Request) -> None:
+    """Sliding-window IP rate limit for unauthenticated public endpoints."""
+    global _last_public_cleanup_at
+    host = request.client.host if request.client else "anonymous"
+    now = time.time()
+    cutoff = now - PUBLIC_RATE_WINDOW_SECONDS
+    with _public_lock:
+        if now - _last_public_cleanup_at >= 60 or len(_public_hits) > MAX_RATE_LIMIT_IDENTIFIERS:
+            stale = [key for key, hits in _public_hits.items() if not hits or hits[-1] <= cutoff]
+            for key in stale:
+                _public_hits.pop(key, None)
+            _last_public_cleanup_at = now
+        hits = _public_hits.setdefault(host, deque(maxlen=PUBLIC_RATE_LIMIT + 1))
+        while hits and hits[0] <= cutoff:
+            hits.popleft()
+        if len(hits) >= PUBLIC_RATE_LIMIT:
+            raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Too many requests")
+        hits.append(now)
+
+
 def _token_from_request(request: Request, bearer_token: str | None) -> str | None:
     if bearer_token:
         return bearer_token
@@ -269,8 +310,7 @@ def request_ip_hash(request: Request) -> str | None:
     host = request.client.host if request.client else None
     if not host:
         return None
-    digest = hashlib.sha256(host.encode("utf-8")).hexdigest()
-    return digest
+    return hmac.new(IP_HASH_PEPPER, host.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
 def safe_details(details: dict[str, Any] | None) -> dict[str, Any] | None:
