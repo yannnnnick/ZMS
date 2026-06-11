@@ -124,8 +124,8 @@ $env:DATABASE_URL = "postgresql+psycopg://user:password@localhost:5432/zoo"
 ### Frontend
 
 - **Single-Page-App** mit einem zentralen `App`-Komponenten, das je nach View unterschiedliche UI-Bereiche rendert.
-- **Session-Management**: JWT und Benutzerdaten werden im `localStorage` unter dem Key `zoo-management-session-v1` gespeichert.
-- **API-Kommunikation**: Zentraler `api`-Client in `api.ts`, der `fetch` nutzt und Bearer-Tokens automatisch mitsendet.
+- **Session-Management**: Das Backend setzt ein httpOnly JWT-Cookie und ein separates CSRF-Cookie; das Frontend speichert keine JWTs im `localStorage`.
+- **API-Kommunikation**: Zentraler `api`-Client in `api.ts`, der `fetch` mit `credentials: "include"`, Timeouts und CSRF-Headern fuer Mutationen nutzt.
 - **RBAC im UI**: Navigationseinträge werden basierend auf der Benutzerrolle ein-/ausgeblendet. Die Sicherheitsgrenze ist aber das Backend.
 
 ## Code-Richtlinien
@@ -134,15 +134,16 @@ $env:DATABASE_URL = "postgresql+psycopg://user:password@localhost:5432/zoo"
 - **Sprache im UI und Dokumentation**: Deutsch.
 - **Python**: `from __future__ import annotations` am Dateianfang, Type Hints (PEP 484), moderne SQLAlchemy 2.0-Syntax (`Mapped`, `mapped_column`).
 - **TypeScript**: Strikter Modus (`strict: true`), React-JSX-Transform.
-- **Keine Secrets ins Repository**: `.env`-Dateien sind in `.gitignore` ausgeschlossen. Lokale Defaults existieren als Fallback in den Modulen (z. B. `JWT_SECRET`, `DATABASE_URL`).
+- **Keine Secrets ins Repository**: `.env`-Dateien sind in `.gitignore` ausgeschlossen. `JWT_SECRET` muss explizit gesetzt werden; `DATABASE_URL` hat nur fuer lokale Entwicklung einen SQLite-Fallback.
 
 ## Wichtige Umgebungsvariablen
 
 | Variable | Standardwert | Beschreibung |
 |----------|--------------|--------------|
 | `DATABASE_URL` | `sqlite:///./zoo.db` | Datenbankverbindung |
-| `JWT_SECRET` | `dev-only-change-me-for-local-mvp-32-bytes` | JWT-Signing-Secret |
-| `JWT_EXPIRE_MINUTES` | `480` | Token-Gültigkeit in Minuten |
+| `JWT_SECRET` | kein Default | JWT-Signing-Secret, mindestens 32 Byte |
+| `JWT_EXPIRE_MINUTES` | `30` | Token-Gültigkeit in Minuten |
+| `AUTH_COOKIE_SECURE` | `true` | Secure-Flag fuer Auth- und CSRF-Cookies |
 | `CORS_ORIGINS` | `http://127.0.0.1:5173,http://localhost:5173` | CORS-Whitelist |
 | `VITE_API_URL` | `http://127.0.0.1:8000` | Backend-URL für das Frontend |
 
@@ -150,10 +151,10 @@ $env:DATABASE_URL = "postgresql+psycopg://user:password@localhost:5432/zoo"
 
 | Rolle | E-Mail | Passwort |
 |-------|--------|----------|
-| Admin | `admin@example.test` | `Admin123!` |
-| Keeper | `keeper@example.test` | `Keeper123!` |
-| Vet | `vet@example.test` | `Vet123!` |
-| Viewer | `viewer@example.test` | `Viewer123!` |
+| Admin | `admin@example.test` | `Admin12345!` |
+| Keeper | `keeper@example.test` | `Keeper12345!` |
+| Vet | `vet@example.test` | `Vet123456!` |
+| Viewer | `viewer@example.test` | `Viewer12345!` |
 
 ## Sicherheitsaspekte
 

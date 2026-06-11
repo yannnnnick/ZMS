@@ -7,12 +7,17 @@ import type {
   HealthRecord,
   Session,
   Species,
+  User,
   ZooTask
 } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000";
+const REQUEST_TIMEOUT_MS = 10_000;
 
-type RequestOptions = RequestInit & { token?: string };
+type RequestOptions = RequestInit & {
+  csrfToken?: string;
+  timeoutMs?: number;
+};
 
 export class ApiError extends Error {
   status: number;
@@ -23,57 +28,91 @@ export class ApiError extends Error {
   }
 }
 
+function messageFromDetail(detail: unknown): string {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((entry) => {
+        if (typeof entry === "object" && entry && "msg" in entry) {
+          return String(entry.msg);
+        }
+        return String(entry);
+      })
+      .join("; ");
+  }
+  return "Request failed";
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { token, headers, ...fetchOptions } = options;
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...fetchOptions,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...headers
+  const { csrfToken, headers, timeoutMs = REQUEST_TIMEOUT_MS, ...fetchOptions } = options;
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  const requestHeaders = new Headers(headers);
+
+  if (fetchOptions.body && !requestHeaders.has("Content-Type")) {
+    requestHeaders.set("Content-Type", "application/json");
+  }
+  if (csrfToken) {
+    requestHeaders.set("X-CSRF-Token", csrfToken);
+  }
+
+  try {
+    const response = await fetch(`${API_BASE}${path}`, {
+      ...fetchOptions,
+      credentials: "include",
+      headers: requestHeaders,
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({ detail: "Request failed" }));
+      throw new ApiError(response.status, messageFromDetail(body.detail));
     }
-  });
 
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({ detail: "Request failed" }));
-    throw new ApiError(response.status, body.detail ?? "Request failed");
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
+    return response.json() as Promise<T>;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new ApiError(408, "Zeitueberschreitung beim API-Aufruf");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
   }
-
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return response.json() as Promise<T>;
 }
 
 export const api = {
   login: (email: string, password: string) =>
     request<Session>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
-  logout: (token: string) => request<{ status: string }>("/auth/logout", { method: "POST", token }),
-  dashboard: (token: string) => request<DashboardSummary>("/dashboard", { token }),
-  animals: (token: string) => request<Animal[]>("/animals", { token }),
-  createAnimal: (token: string, body: Record<string, unknown>) =>
-    request<Animal>("/animals", { method: "POST", token, body: JSON.stringify(body) }),
-  updateAnimal: (token: string, id: number, body: Record<string, unknown>) =>
-    request<Animal>(`/animals/${id}`, { method: "PATCH", token, body: JSON.stringify(body) }),
-  deleteAnimal: (token: string, id: number) => request<void>(`/animals/${id}`, { method: "DELETE", token }),
-  species: (token: string) => request<Species[]>("/species", { token }),
-  createSpecies: (token: string, body: Record<string, unknown>) =>
-    request<Species>("/species", { method: "POST", token, body: JSON.stringify(body) }),
-  enclosures: (token: string) => request<Enclosure[]>("/enclosures", { token }),
-  createEnclosure: (token: string, body: Record<string, unknown>) =>
-    request<Enclosure>("/enclosures", { method: "POST", token, body: JSON.stringify(body) }),
-  feedings: (token: string) => request<FeedingSchedule[]>("/feeding-schedules", { token }),
-  createFeeding: (token: string, body: Record<string, unknown>) =>
-    request<FeedingSchedule>("/feeding-schedules", { method: "POST", token, body: JSON.stringify(body) }),
-  healthRecords: (token: string) => request<HealthRecord[]>("/health-records", { token }),
-  createHealthRecord: (token: string, body: Record<string, unknown>) =>
-    request<HealthRecord>("/health-records", { method: "POST", token, body: JSON.stringify(body) }),
-  tasks: (token: string) => request<ZooTask[]>("/tasks", { token }),
-  createTask: (token: string, body: Record<string, unknown>) =>
-    request<ZooTask>("/tasks", { method: "POST", token, body: JSON.stringify(body) }),
-  updateTask: (token: string, id: number, body: Record<string, unknown>) =>
-    request<ZooTask>(`/tasks/${id}`, { method: "PATCH", token, body: JSON.stringify(body) }),
-  auditLogs: (token: string) => request<AuditLog[]>("/audit-logs", { token })
+  logout: (csrfToken: string) => request<{ status: string }>("/auth/logout", { method: "POST", csrfToken }),
+  me: () => request<User>("/me"),
+  dashboard: () => request<DashboardSummary>("/dashboard"),
+  animals: () => request<Animal[]>("/animals"),
+  createAnimal: (csrfToken: string, body: Record<string, unknown>) =>
+    request<Animal>("/animals", { method: "POST", csrfToken, body: JSON.stringify(body) }),
+  updateAnimal: (csrfToken: string, id: number, body: Record<string, unknown>) =>
+    request<Animal>(`/animals/${id}`, { method: "PATCH", csrfToken, body: JSON.stringify(body) }),
+  deleteAnimal: (csrfToken: string, id: number) => request<void>(`/animals/${id}`, { method: "DELETE", csrfToken }),
+  species: () => request<Species[]>("/species"),
+  createSpecies: (csrfToken: string, body: Record<string, unknown>) =>
+    request<Species>("/species", { method: "POST", csrfToken, body: JSON.stringify(body) }),
+  enclosures: () => request<Enclosure[]>("/enclosures"),
+  createEnclosure: (csrfToken: string, body: Record<string, unknown>) =>
+    request<Enclosure>("/enclosures", { method: "POST", csrfToken, body: JSON.stringify(body) }),
+  feedings: () => request<FeedingSchedule[]>("/feeding-schedules"),
+  createFeeding: (csrfToken: string, body: Record<string, unknown>) =>
+    request<FeedingSchedule>("/feeding-schedules", { method: "POST", csrfToken, body: JSON.stringify(body) }),
+  healthRecords: () => request<HealthRecord[]>("/health-records"),
+  createHealthRecord: (csrfToken: string, body: Record<string, unknown>) =>
+    request<HealthRecord>("/health-records", { method: "POST", csrfToken, body: JSON.stringify(body) }),
+  tasks: () => request<ZooTask[]>("/tasks"),
+  createTask: (csrfToken: string, body: Record<string, unknown>) =>
+    request<ZooTask>("/tasks", { method: "POST", csrfToken, body: JSON.stringify(body) }),
+  updateTask: (csrfToken: string, id: number, body: Record<string, unknown>) =>
+    request<ZooTask>(`/tasks/${id}`, { method: "PATCH", csrfToken, body: JSON.stringify(body) }),
+  deleteTask: (csrfToken: string, id: number) => request<void>(`/tasks/${id}`, { method: "DELETE", csrfToken }),
+  auditLogs: () => request<AuditLog[]>("/audit-logs")
 };
-

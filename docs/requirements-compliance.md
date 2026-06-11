@@ -25,7 +25,7 @@
 | ID | Anforderung | Umsetzung | Nachweis |
 | --- | --- | --- | --- |
 | DS-01 | Datenminimierung | User-Modell speichert nur E-Mail, Anzeigename, Rolle, Hash, Status | Datenmodell-Review |
-| DS-02 | Nicht oeffentlich | Geschuetzte Endpunkte nutzen Bearer-Token | Auth-Tests |
+| DS-02 | Nicht oeffentlich | Geschuetzte Endpunkte nutzen httpOnly-Cookie-Sessions und CSRF-Header fuer Mutationen | Auth-Tests |
 | DS-03 | Rollen begrenzen Zugriff | `require_roles(...)` im Backend | Zugriffstests |
 | DS-04 | Synthetische Demo-Daten | `seed.py` nutzt `.example.test` und fiktive Namen | Seed-Review |
 | DS-05 | Deaktivierungskonzept | Tiere werden per Soft Delete deaktiviert | API-Review |
@@ -35,8 +35,8 @@
 | SEC-02 | Serverseitige Zugriffskontrolle | FastAPI Dependencies pro Endpunkt | Tests |
 | SEC-03 | IDOR-Reduktion | Entity-Lookups und Rollenpruefung pro Objektaktion | Tests/Review |
 | SEC-04 | Injection-Schutz | SQLAlchemy ORM statt String-SQL | Code-Review |
-| SEC-05 | Login-Limit | In-Memory Rate Limit pro E-Mail | Code-Review |
-| SEC-06 | Kontrollierte Fehler | Globaler 500-Handler ohne Stacktrace | Code-Review |
+| SEC-05 | Login-Limit | Thread-safe In-Memory Rate Limit pro E-Mail mit TTL-Cleanup | Code-Review |
+| SEC-06 | Kontrollierte Fehler | Globaler 500-Handler mit serverseitigem Stacktrace-Logging und generischer Client-Antwort | Code-Review |
 | SEC-07 | Restriktives CORS | Konfigurierbare Origin-Liste, lokal begrenzt | Config-Review |
 | SEC-08 | Auditierbarkeit | Tabelle `audit_logs`, Schreibhelper `write_audit_log` | Audit-Test |
 | SEC-09 | Abhaengigkeiten pruefbar | `requirements.txt`, `package.json`, `package-lock.json` | `pip show`, `npm audit`, Build-Kommandos |

@@ -19,6 +19,8 @@ cd backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
+$env:JWT_SECRET = "<mindestens-32-byte-zufaelliger-wert>"
+$env:AUTH_COOKIE_SECURE = "false"  # nur fuer lokale HTTP-Entwicklung
 python -m uvicorn app.main:app --reload
 ```
 
@@ -42,10 +44,10 @@ Alle Demo-Daten sind synthetisch.
 
 | Rolle  | E-Mail              | Passwort   |
 | ------ | ------------------- | ---------- |
-| Admin  | admin@example.test  | Admin123!  |
-| Keeper | keeper@example.test | Keeper123! |
-| Vet    | vet@example.test    | Vet123!    |
-| Viewer | viewer@example.test | Viewer123! |
+| Admin  | admin@example.test  | Admin12345!  |
+| Keeper | keeper@example.test | Keeper12345! |
+| Vet    | vet@example.test    | Vet123456!   |
+| Viewer | viewer@example.test | Viewer12345! |
 
 ## Backend-Tests
 
@@ -95,9 +97,10 @@ Keine Secrets gehoeren ins Repository. Lokale `.env`-Dateien sind per `.gitignor
 - `GET/POST /health-records`
 - `GET/POST /tasks`
 - `PATCH /tasks/{id}`
+- `DELETE /tasks/{id}`
 - `GET /audit-logs`
 
 Die Endpunkte sind serverseitig per RBAC abgesichert.
-`POST /auth/login` erwartet JSON im Format `{"email":"admin@example.test","password":"Admin123!"}` und liefert mindestens `access_token` und `token_type`.
+`POST /auth/login` erwartet JSON im Format `{"email":"admin@example.test","password":"Admin12345!"}`. Die API setzt ein httpOnly-Session-Cookie und liefert `role`, `display_name` und `csrf_token`; Mutationen senden den CSRF-Wert im Header `X-CSRF-Token`.
 
 Passwoerter werden nicht im Klartext gespeichert. Das Backend verwendet Argon2 ueber `pwdlib`; bcrypt/passlib werden nicht mehr benoetigt.
