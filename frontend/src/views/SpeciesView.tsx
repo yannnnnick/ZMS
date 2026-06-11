@@ -4,6 +4,7 @@ import { api } from "../api";
 import { Icon } from "../components/Icon";
 import { Panel } from "../components/Panel";
 import { StatusChip } from "../components/StatusChip";
+import { useMutation } from "../hooks/useMutation";
 import type { Session, Species } from "../types";
 import { optionalText } from "./formHelpers";
 
@@ -26,16 +27,20 @@ export function SpeciesView({
 }) {
   const [form, setForm] = useState(emptySpeciesForm);
   const isAdmin = session.role === "admin";
+  const { isSubmitting, error, run } = useMutation();
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    await api.createSpecies(session.csrf_token, {
-      common_name: form.common_name,
-      scientific_name: optionalText(form.scientific_name),
-      category: form.category,
-      conservation_status: optionalText(form.conservation_status),
-      husbandry_notes: optionalText(form.husbandry_notes)
-    });
+    const ok = await run(() =>
+      api.createSpecies(session.csrf_token, {
+        common_name: form.common_name,
+        scientific_name: optionalText(form.scientific_name),
+        category: form.category,
+        conservation_status: optionalText(form.conservation_status),
+        husbandry_notes: optionalText(form.husbandry_notes)
+      })
+    );
+    if (!ok) return;
     setForm(emptySpeciesForm);
     await reload();
   };
@@ -77,10 +82,11 @@ export function SpeciesView({
               placeholder="Haltungshinweise"
               maxLength={5000}
             />
-            <button className="primary-button" type="submit">
+            <button className="primary-button" type="submit" disabled={isSubmitting}>
               <Icon name="plus" />
-              Speichern
+              {isSubmitting ? "Speichere..." : "Speichern"}
             </button>
+            {error ? <p className="form-error">{error}</p> : null}
           </form>
         </Panel>
       ) : null}

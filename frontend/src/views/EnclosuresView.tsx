@@ -4,6 +4,7 @@ import { api } from "../api";
 import { Icon } from "../components/Icon";
 import { Panel } from "../components/Panel";
 import { StatusChip, toneForStatus } from "../components/StatusChip";
+import { useMutation } from "../hooks/useMutation";
 import type { Enclosure, SafetyStatus, Session } from "../types";
 import { optionalText } from "./formHelpers";
 
@@ -26,14 +27,18 @@ export function EnclosuresView({
 }) {
   const [form, setForm] = useState(emptyEnclosureForm);
   const isAdmin = session.role === "admin";
+  const { isSubmitting, error, run } = useMutation();
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    await api.createEnclosure(session.csrf_token, {
-      ...form,
-      capacity: Number(form.capacity),
-      notes: optionalText(form.notes)
-    });
+    const ok = await run(() =>
+      api.createEnclosure(session.csrf_token, {
+        ...form,
+        capacity: Number(form.capacity),
+        notes: optionalText(form.notes)
+      })
+    );
+    if (!ok) return;
     setForm(emptyEnclosureForm);
     await reload();
   };
@@ -80,10 +85,11 @@ export function EnclosuresView({
               placeholder="Notizen"
               maxLength={5000}
             />
-            <button className="primary-button" type="submit">
+            <button className="primary-button" type="submit" disabled={isSubmitting}>
               <Icon name="plus" />
-              Speichern
+              {isSubmitting ? "Speichere..." : "Speichern"}
             </button>
+            {error ? <p className="form-error">{error}</p> : null}
           </form>
         </Panel>
       ) : null}

@@ -15,7 +15,10 @@ export function LoginScreen({ onLogin, onOpenPublicMap }: { onLogin: (session: S
     setError(null);
     setIsLoading(true);
     try {
-      onLogin(await api.login(email, password));
+      const session = await api.login(email, password);
+      // Clear the password from React state so it is not retained in memory after login.
+      setPassword("");
+      onLogin(session);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Login fehlgeschlagen");
     } finally {

@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import { api } from "../api";
 import { Icon } from "../components/Icon";
 import { Panel } from "../components/Panel";
+import { useMutation } from "../hooks/useMutation";
 import type { Animal, HealthRecord, RecordType, Session } from "../types";
 import { optionalText } from "./formHelpers";
 
@@ -26,15 +27,19 @@ export function HealthView({
   reload: () => Promise<void>;
 }) {
   const [form, setForm] = useState(emptyHealthForm);
+  const { isSubmitting, error, run } = useMutation();
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    await api.createHealthRecord(session.csrf_token, {
-      ...form,
-      animal_id: Number(form.animal_id),
-      medication: optionalText(form.medication),
-      next_check_date: form.next_check_date || null
-    });
+    const ok = await run(() =>
+      api.createHealthRecord(session.csrf_token, {
+        ...form,
+        animal_id: Number(form.animal_id),
+        medication: optionalText(form.medication),
+        next_check_date: form.next_check_date || null
+      })
+    );
+    if (!ok) return;
     setForm(emptyHealthForm);
     await reload();
   };
@@ -79,10 +84,11 @@ export function HealthView({
             type="date"
             aria-label="Naechste Kontrolle"
           />
-          <button className="primary-button" type="submit">
+          <button className="primary-button" type="submit" disabled={isSubmitting}>
             <Icon name="plus" />
-            Erfassen
+            {isSubmitting ? "Speichere..." : "Erfassen"}
           </button>
+          {error ? <p className="form-error">{error}</p> : null}
         </form>
       </Panel>
       <Panel title="Gesundheitsverlauf" icon="heart">

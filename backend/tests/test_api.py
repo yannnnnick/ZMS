@@ -223,17 +223,28 @@ def test_failed_login_is_audited(client: TestClient) -> None:
 
 
 def test_soft_deleted_animal_is_hidden_and_feeding_removed(client: TestClient) -> None:
+    # Animal 4 (Pina) has a feeding schedule but no open care or vet tasks, so it can be archived.
     admin_headers = login(client, "admin@example.test", "Admin12345!")
-    delete_response = client.delete("/animals/1", headers=admin_headers)
+    delete_response = client.delete("/animals/4", headers=admin_headers)
     assert delete_response.status_code == 204
 
     animals_response = client.get("/animals", headers=admin_headers)
     assert animals_response.status_code == 200
-    assert all(animal["id"] != 1 for animal in animals_response.json())
+    assert all(animal["id"] != 4 for animal in animals_response.json())
 
     feedings_response = client.get("/feeding-schedules", headers=admin_headers)
     assert feedings_response.status_code == 200
-    assert all(feeding["animal_id"] != 1 for feeding in feedings_response.json())
+    assert all(feeding["animal_id"] != 4 for feeding in feedings_response.json())
+
+
+def test_delete_animal_with_open_tasks_is_blocked(client: TestClient) -> None:
+    # Animal 1 (Kito) has an open care task in the seed data and must not be archivable.
+    admin_headers = login(client, "admin@example.test", "Admin12345!")
+    delete_response = client.delete("/animals/1", headers=admin_headers)
+    assert delete_response.status_code == 409
+
+    animals_response = client.get("/animals", headers=admin_headers)
+    assert 1 in {animal["id"] for animal in animals_response.json()}
 
 
 def test_viewer_cannot_list_tasks(client: TestClient) -> None:
@@ -247,7 +258,7 @@ def test_viewer_uses_public_map_instead_of_internal_dashboard(client: TestClient
     dashboard_response = client.get("/dashboard", headers=viewer_headers)
     assert dashboard_response.status_code == 403
 
-    public_response = client.get("/api/public/map")
+    public_response = client.get("/public/map")
     assert public_response.status_code == 200
     body = public_response.json()
     assert body["enclosures"]

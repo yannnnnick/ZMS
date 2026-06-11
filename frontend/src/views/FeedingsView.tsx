@@ -4,6 +4,7 @@ import { api } from "../api";
 import { FeedingList } from "../components/Lists";
 import { Icon } from "../components/Icon";
 import { Panel } from "../components/Panel";
+import { useMutation } from "../hooks/useMutation";
 import type { Animal, FeedingSchedule, Role, Session } from "../types";
 import { optionalText } from "./formHelpers";
 
@@ -30,14 +31,18 @@ export function FeedingsView({
 }) {
   const [form, setForm] = useState(emptyFeedingForm);
   const canCreate = ["admin", "keeper"].includes(session.role);
+  const { isSubmitting, error, run } = useMutation();
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    await api.createFeeding(session.csrf_token, {
-      ...form,
-      animal_id: Number(form.animal_id),
-      notes: optionalText(form.notes)
-    });
+    const ok = await run(() =>
+      api.createFeeding(session.csrf_token, {
+        ...form,
+        animal_id: Number(form.animal_id),
+        notes: optionalText(form.notes)
+      })
+    );
+    if (!ok) return;
     setForm(emptyFeedingForm);
     await reload();
   };
@@ -92,10 +97,11 @@ export function FeedingsView({
               placeholder="Notizen"
               maxLength={5000}
             />
-            <button className="primary-button" type="submit">
+            <button className="primary-button" type="submit" disabled={isSubmitting}>
               <Icon name="plus" />
-              Speichern
+              {isSubmitting ? "Speichere..." : "Speichern"}
             </button>
+            {error ? <p className="form-error">{error}</p> : null}
           </form>
         </Panel>
       ) : null}

@@ -3,7 +3,20 @@ from __future__ import annotations
 from datetime import date, datetime, time, timezone
 from enum import Enum
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, JSON, String, Text, Time
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    JSON,
+    String,
+    Text,
+    Time,
+    UniqueConstraint,
+)
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -164,6 +177,7 @@ class Species(Base):
 
 class Enclosure(Base):
     __tablename__ = "enclosures"
+    __table_args__ = (CheckConstraint("capacity >= 0", name="ck_enclosures_capacity_non_negative"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
@@ -390,6 +404,10 @@ class MedicalReport(Base):
 
 class MapPath(Base):
     __tablename__ = "map_paths"
+    __table_args__ = (
+        UniqueConstraint("from_enclosure_id", "to_enclosure_id", name="uq_map_paths_route"),
+        CheckConstraint("from_enclosure_id <> to_enclosure_id", name="ck_map_paths_distinct_endpoints"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     from_enclosure_id: Mapped[int] = mapped_column(ForeignKey("enclosures.id", ondelete="CASCADE"), nullable=False)
@@ -404,6 +422,10 @@ class MapPath(Base):
 
 class VisitorStat(Base):
     __tablename__ = "visitor_stats"
+    __table_args__ = (
+        CheckConstraint("visitor_count >= 0", name="ck_visitor_stats_count_non_negative"),
+        CheckConstraint("ticket_revenue >= 0", name="ck_visitor_stats_revenue_non_negative"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     date: Mapped[date] = mapped_column(Date, index=True, nullable=False)
@@ -427,6 +449,13 @@ class WorkSession(Base):
 
 class SalaryProfile(Base):
     __tablename__ = "salary_profiles"
+    __table_args__ = (
+        CheckConstraint("hourly_rate >= 0", name="ck_salary_hourly_rate_non_negative"),
+        CheckConstraint(
+            "tax_rate_percent IS NULL OR (tax_rate_percent >= 0 AND tax_rate_percent <= 100)",
+            name="ck_salary_tax_rate_range",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
@@ -440,6 +469,13 @@ class SalaryProfile(Base):
 
 class FoodItem(Base):
     __tablename__ = "food_items"
+    __table_args__ = (
+        UniqueConstraint("name", name="uq_food_items_name"),
+        CheckConstraint("cost_per_unit >= 0", name="ck_food_items_cost_non_negative"),
+        CheckConstraint("calories_per_unit >= 0", name="ck_food_items_calories_non_negative"),
+        CheckConstraint("protein_per_unit >= 0", name="ck_food_items_protein_non_negative"),
+        CheckConstraint("available_quantity >= 0", name="ck_food_items_quantity_non_negative"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
@@ -455,6 +491,11 @@ class FoodItem(Base):
 
 class AnimalNutritionRequirement(Base):
     __tablename__ = "animal_nutrition_requirements"
+    __table_args__ = (
+        UniqueConstraint("species_id", name="uq_nutrition_requirement_species"),
+        CheckConstraint("min_calories >= 0", name="ck_nutrition_min_calories_non_negative"),
+        CheckConstraint("min_protein >= 0", name="ck_nutrition_min_protein_non_negative"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     species_id: Mapped[int] = mapped_column(ForeignKey("species.id", ondelete="CASCADE"), nullable=False)

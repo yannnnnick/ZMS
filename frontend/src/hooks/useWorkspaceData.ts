@@ -68,8 +68,7 @@ export function useWorkspaceData(session: Session, view: ViewKey, onUnauthorized
   const requestIdRef = useRef(0);
 
   const loadData = useCallback(async () => {
-    const requestId = requestIdRef.current + 1;
-    requestIdRef.current = requestId;
+    const requestId = ++requestIdRef.current;
     setError(null);
     setIsLoading(true);
 
@@ -84,75 +83,88 @@ export function useWorkspaceData(session: Session, view: ViewKey, onUnauthorized
     const needsEconomy = view === "economy" && session.role === "admin";
     const needsAudit = view === "audit" && session.role === "admin";
 
-    try {
-      const [
-        dashboardData,
-        animalData,
-        speciesData,
-        enclosureData,
-        taskData,
-        feedingData,
-        healthData,
-        userData,
-        animalAssignmentData,
-        enclosureAssignmentData,
-        careTaskData,
-        conditionReportData,
-        vetTaskData,
-        medicalReportData,
-        publicMapData,
-        economyData,
-        auditData
-      ] = await Promise.all([
-        needsCoreData ? api.dashboard() : Promise.resolve(null),
-        needsCoreData || needsAssignments || needsCare || needsVet || needsEconomy ? api.animals() : Promise.resolve([] as Animal[]),
-        needsCoreData ? api.species() : Promise.resolve([] as Species[]),
-        needsCoreData || needsAssignments ? api.enclosures() : Promise.resolve([] as Enclosure[]),
-        canUsePrivilegedOps ? api.tasks() : Promise.resolve([] as ZooTask[]),
-        needsFeedings ? api.feedings() : Promise.resolve([] as FeedingSchedule[]),
-        needsHealth ? api.healthRecords() : Promise.resolve([] as HealthRecord[]),
-        needsAssignments || needsEconomy ? api.users() : Promise.resolve([] as User[]),
-        needsAssignments ? api.animalAssignments() : Promise.resolve([] as AnimalAssignment[]),
-        needsAssignments ? api.enclosureAssignments() : Promise.resolve([] as EnclosureAssignment[]),
-        needsCare ? api.careTasks() : Promise.resolve([] as CareTask[]),
-        needsCare ? api.conditionReports() : Promise.resolve([] as AnimalConditionReport[]),
-        needsVet ? api.vetTasks() : Promise.resolve([] as VetTask[]),
-        needsVet ? api.medicalReports() : Promise.resolve([] as MedicalReport[]),
-        needsPublicMap ? api.publicMap() : Promise.resolve(null),
-        needsEconomy ? api.economy() : Promise.resolve(null),
-        needsAudit ? api.auditLogs() : Promise.resolve([] as AuditLog[])
-      ]);
+    // Each request is settled independently: a single failing endpoint degrades only its
+    // own slice of the workspace instead of blanking everything (as Promise.all would).
+    // A 401 anywhere still means the session is gone, so it is surfaced separately.
+    const failures: string[] = [];
+    let unauthorized = false;
+    const settle = async <T,>(active: boolean, call: () => Promise<T>, fallback: T): Promise<T> => {
+      if (!active) return fallback;
+      try {
+        return await call();
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 401) {
+          unauthorized = true;
+        } else {
+          failures.push(err instanceof ApiError ? err.message : "Backend nicht erreichbar");
+        }
+        return fallback;
+      }
+    };
 
-      if (requestId !== requestIdRef.current) return;
-      setDashboard(dashboardData);
-      setAnimals(animalData);
-      setSpecies(speciesData);
-      setEnclosures(enclosureData);
-      setTasks(taskData);
-      setFeedings(feedingData);
-      setHealthRecords(healthData);
-      setUsers(userData);
-      setAnimalAssignments(animalAssignmentData);
-      setEnclosureAssignments(enclosureAssignmentData);
-      setCareTasks(careTaskData);
-      setConditionReports(conditionReportData);
-      setVetTasks(vetTaskData);
-      setMedicalReports(medicalReportData);
-      setPublicMap(publicMapData);
-      setEconomy(economyData);
-      setAuditLogs(auditData);
-    } catch (err) {
-      if (requestId !== requestIdRef.current) return;
-      if (err instanceof ApiError && err.status === 401) {
-        onUnauthorized();
-        return;
-      }
-      setError(err instanceof ApiError ? err.message : "Backend nicht erreichbar");
-    } finally {
-      if (requestId === requestIdRef.current) {
-        setIsLoading(false);
-      }
+    const [
+      dashboardData,
+      animalData,
+      speciesData,
+      enclosureData,
+      taskData,
+      feedingData,
+      healthData,
+      userData,
+      animalAssignmentData,
+      enclosureAssignmentData,
+      careTaskData,
+      conditionReportData,
+      vetTaskData,
+      medicalReportData,
+      publicMapData,
+      economyData,
+      auditData
+    ] = await Promise.all([
+      settle(needsCoreData, api.dashboard, null as DashboardSummary | null),
+      settle(needsCoreData || needsAssignments || needsCare || needsVet || needsEconomy, api.animals, [] as Animal[]),
+      settle(needsCoreData, api.species, [] as Species[]),
+      settle(needsCoreData || needsAssignments, api.enclosures, [] as Enclosure[]),
+      settle(canUsePrivilegedOps, api.tasks, [] as ZooTask[]),
+      settle(needsFeedings, api.feedings, [] as FeedingSchedule[]),
+      settle(needsHealth, api.healthRecords, [] as HealthRecord[]),
+      settle(needsAssignments || needsEconomy, api.users, [] as User[]),
+      settle(needsAssignments, api.animalAssignments, [] as AnimalAssignment[]),
+      settle(needsAssignments, api.enclosureAssignments, [] as EnclosureAssignment[]),
+      settle(needsCare, api.careTasks, [] as CareTask[]),
+      settle(needsCare, api.conditionReports, [] as AnimalConditionReport[]),
+      settle(needsVet, api.vetTasks, [] as VetTask[]),
+      settle(needsVet, api.medicalReports, [] as MedicalReport[]),
+      settle(needsPublicMap, api.publicMap, null as PublicZooMap | null),
+      settle(needsEconomy, api.economy, null as EconomySummary | null),
+      settle(needsAudit, api.auditLogs, [] as AuditLog[])
+    ]);
+
+    if (requestId !== requestIdRef.current) return;
+    setIsLoading(false);
+    if (unauthorized) {
+      onUnauthorized();
+      return;
     }
+
+    setDashboard(dashboardData);
+    setAnimals(animalData);
+    setSpecies(speciesData);
+    setEnclosures(enclosureData);
+    setTasks(taskData);
+    setFeedings(feedingData);
+    setHealthRecords(healthData);
+    setUsers(userData);
+    setAnimalAssignments(animalAssignmentData);
+    setEnclosureAssignments(enclosureAssignmentData);
+    setCareTasks(careTaskData);
+    setConditionReports(conditionReportData);
+    setVetTasks(vetTaskData);
+    setMedicalReports(medicalReportData);
+    setPublicMap(publicMapData);
+    setEconomy(economyData);
+    setAuditLogs(auditData);
+    setError(failures.length ? failures[0] : null);
   }, [onUnauthorized, session.role, view]);
 
   useEffect(() => {
