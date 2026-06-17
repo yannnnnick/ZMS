@@ -60,9 +60,9 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_db(seed: bool = True) -> None:
-    from . import models  # noqa: F401
+    from . import models
     from .seed import seed_demo_data
 
-    Base.metadata.create_all(bind=engine)
+    models.Base.metadata.create_all(bind=engine)
     if seed:
         seed_demo_data(SessionLocal)
