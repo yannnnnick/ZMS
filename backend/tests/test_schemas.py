@@ -80,3 +80,13 @@ def test_dummy_health_record_sanitize_text_fields():
     model = DummyHealthRecord(description="<script>alert(1)</script>", medication="<script>alert(2)</script>")
     assert model.description == "&lt;script&gt;alert(1)&lt;/script&gt;"
     assert model.medication == "&lt;script&gt;alert(2)&lt;/script&gt;"
+
+    # Test HTML unescaping before escaping
+    model = DummyHealthRecord(description="&lt;div&gt;test&lt;/div&gt;", medication="&lt;div&gt;test2&lt;/div&gt;")
+    assert model.description == "&lt;div&gt;test&lt;/div&gt;"
+    assert model.medication == "&lt;div&gt;test2&lt;/div&gt;"
+
+    # Test multiple fields with mixed scenarios
+    model = DummyHealthRecord(description=" <p>desc</p> ", medication="  ")
+    assert model.description == "&lt;p&gt;desc&lt;/p&gt;"
+    assert model.medication is None
