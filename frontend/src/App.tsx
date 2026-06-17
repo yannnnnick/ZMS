@@ -151,7 +151,7 @@ export default function App() {
           <div className="userbox">
             <span>{effectiveSession.display_name}</span>
             <StatusChip value={roleLabels[effectiveSession.role]} tone="neutral" />
-            <button className="icon-button" title={session ? "Abmelden" : "Zur Anmeldung"} type="button" onClick={() => void handleLogout()}>
+            <button className="icon-button" aria-label={session ? "Abmelden" : "Zur Anmeldung"} title={session ? "Abmelden" : "Zur Anmeldung"} type="button" onClick={() => void handleLogout()}>
               <Icon name="logout" />
             </button>
           </div>

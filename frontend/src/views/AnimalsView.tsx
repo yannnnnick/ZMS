@@ -163,10 +163,12 @@ export function AnimalsView({
                     {session.role === "admin" ? (
                       <button
                         className="icon-button danger"
+                        aria-label={`Tier ${animal.name} archivieren`}
                         title="Archivieren"
                         type="button"
                         disabled={rowAction.isSubmitting}
                         onClick={async () => {
+                          if (!window.confirm(`Möchten Sie ${animal.name} wirklich archivieren?`)) return;
                           const ok = await rowAction.run(() => api.deleteAnimal(session.csrf_token, animal.id));
                           if (ok) await reload();
                         }}
