@@ -44,19 +44,29 @@ export class ApiError extends Error {
   }
 }
 
-function messageFromDetail(detail: unknown): string {
+function parseStringDetail(detail: unknown): string | null {
   if (typeof detail === "string") return detail;
+  return null;
+}
+
+function parseObjectDetail(entry: unknown): string | null {
+  if (typeof entry === "object" && entry && "msg" in entry) {
+    return String(entry.msg);
+  }
+  return null;
+}
+
+function parseArrayDetail(detail: unknown): string | null {
   if (Array.isArray(detail)) {
     return detail
-      .map((entry) => {
-        if (typeof entry === "object" && entry && "msg" in entry) {
-          return String(entry.msg);
-        }
-        return String(entry);
-      })
+      .map((entry) => parseObjectDetail(entry) ?? String(entry))
       .join("; ");
   }
-  return "Request failed";
+  return null;
+}
+
+function messageFromDetail(detail: unknown): string {
+  return parseStringDetail(detail) ?? parseArrayDetail(detail) ?? "Request failed";
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
