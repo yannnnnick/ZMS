@@ -29,7 +29,6 @@ from .models import (
     EnclosureAssignment,
     FeedingSchedule,
     FoodItem,
-    FeedingPlan,
     HealthRecord,
     HealthStatus,
     MapPath,
