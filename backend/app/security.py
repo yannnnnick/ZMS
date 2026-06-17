@@ -51,9 +51,12 @@ SENSITIVE_DETAIL_KEYS = {
 }
 
 # Pepper used to keep hashed IP addresses (a small, enumerable keyspace) from being
-# trivially reversible via a rainbow table. Falls back to JWT_SECRET so deployments do
-# not need an extra variable, but a dedicated IP_HASH_PEPPER is recommended.
-IP_HASH_PEPPER = (os.getenv("IP_HASH_PEPPER") or JWT_SECRET).encode("utf-8")
+# trivially reversible via a rainbow table. Falls back to a key derived from JWT_SECRET
+# so deployments do not need an extra variable, but a dedicated IP_HASH_PEPPER is recommended.
+IP_HASH_PEPPER = (
+    os.getenv("IP_HASH_PEPPER") or
+    hmac.new(JWT_SECRET.encode("utf-8"), b"ip-hash-pepper", hashlib.sha256).hexdigest()
+).encode("utf-8")
 
 PUBLIC_RATE_LIMIT = int(os.getenv("PUBLIC_RATE_LIMIT", "60"))
 PUBLIC_RATE_WINDOW_SECONDS = int(os.getenv("PUBLIC_RATE_WINDOW_SECONDS", "60"))
