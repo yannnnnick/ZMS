@@ -14,8 +14,8 @@ const createAnimalMock = vi.mocked(api.createAnimal);
 const adminSession: Session = { role: "admin", display_name: "Ada", csrf_token: "csrf" };
 const vetSession: Session = { role: "vet", display_name: "Val", csrf_token: "csrf" };
 
-const mockSpecies: Species[] = [{ id: 1, common_name: "Lion", scientific_name: "Panthera leo", conservation_status: "vulnerable" }];
-const mockEnclosures: Enclosure[] = [{ id: 1, name: "Savanna", type: "savanna", capacity: 5, maintenance_status: "good", biome: "grassland" }];
+const mockSpecies: Species[] = [{ id: 1, common_name: "Lion", scientific_name: "Panthera leo", category: "mammal", conservation_status: "vulnerable" }];
+const mockEnclosures: Enclosure[] = [{ id: 1, name: "Savanna", location: "North", capacity: 5, safety_status: "ok", is_public_visible: true }];
 const mockAnimals: Animal[] = [];
 
 describe("AnimalsView", () => {

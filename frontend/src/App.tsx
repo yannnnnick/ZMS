@@ -17,11 +17,15 @@ function readCookie(name: string): string | null {
   return cookie ? decodeURIComponent(cookie.slice(prefix.length)) : null;
 }
 
+const roleDefaultViewMap: Record<Session["role"], ViewKey> = {
+  viewer: "visitorMap",
+  keeper: "keeperCalendar",
+  vet: "vetCalendar",
+  admin: "dashboard"
+};
+
 function defaultViewForRole(role: Session["role"]): ViewKey {
-  if (role === "viewer") return "visitorMap";
-  if (role === "keeper") return "keeperCalendar";
-  if (role === "vet") return "vetCalendar";
-  return "dashboard";
+  return roleDefaultViewMap[role] ?? "dashboard";
 }
 
 const publicVisitorSession: Session = {
