@@ -132,11 +132,20 @@ def parse_cors_origins(raw_origins: str) -> list[str]:
         origin = raw_origin.strip().rstrip("/")
         if not origin:
             continue
-        if origin == "*":
-            raise RuntimeError("CORS_ORIGINS must not contain '*' when credentialed requests are enabled.")
+
+        if "*" in origin:
+            raise RuntimeError(f"CORS origins must not contain wildcards: {origin}")
+
         parsed = urlparse(origin)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             raise RuntimeError(f"Invalid CORS origin: {origin}")
+
+        hostname = parsed.hostname or ""
+        is_localhost = hostname == "localhost" or hostname == "127.0.0.1" or hostname.endswith(".localhost")
+
+        if parsed.scheme == "http" and not is_localhost:
+            raise RuntimeError(f"CORS origin must use HTTPS unless it is localhost: {origin}")
+
         origins.append(origin)
     if not origins:
         raise RuntimeError("CORS_ORIGINS must contain at least one valid origin.")
