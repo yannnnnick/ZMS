@@ -77,6 +77,7 @@ export function VetCalendarView({
                 {task.status !== "done" ? (
                   <button
                     className="icon-button"
+                    aria-label="Aufgabe abschliessen"
                     title="Aufgabe abschliessen"
                     type="button"
                     onClick={async () => {

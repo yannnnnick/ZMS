@@ -54,6 +54,7 @@ export function TaskList({
           {canEdit && csrfToken && reload && task.status !== "done" ? (
             <button
               className="icon-button"
+              aria-label="Aufgabe erledigen"
               title="Erledigen"
               type="button"
               onClick={async () => {

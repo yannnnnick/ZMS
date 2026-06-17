@@ -339,6 +339,17 @@ textarea {
   font-weight: 750;
 }
 
+.primary-button:focus-visible,
+.secondary-button:focus-visible,
+.icon-button:focus-visible,
+.nav-item:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
+
 .primary-button {
   padding: 0 14px;
   background: var(--green);

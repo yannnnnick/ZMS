@@ -71,6 +71,7 @@ export function KeeperCalendarView({
                 {task.status !== "done" ? (
                   <button
                     className="icon-button"
+                    aria-label="Aufgabe erledigen"
                     title="Aufgabe erledigen"
                     type="button"
                     onClick={async () => {
