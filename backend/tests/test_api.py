@@ -14,10 +14,40 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.database import Base, get_db
-from app.main import create_app
+from app.main import create_app, parse_cors_origins
 from app.models import User, UserRole
 from app.seed import seed_demo_data
 from app.security import AUTH_COOKIE_NAME, CSRF_COOKIE_NAME, JWT_ALGORITHM, JWT_SECRET, hash_password, verify_password
+
+
+def test_parse_cors_origins():
+    # Valid
+    assert parse_cors_origins("http://localhost:5173") == ["http://localhost:5173"]
+    assert parse_cors_origins("http://127.0.0.1:8080") == ["http://127.0.0.1:8080"]
+    assert parse_cors_origins("https://example.com") == ["https://example.com"]
+    assert parse_cors_origins("https://sub.example.com") == ["https://sub.example.com"]
+    assert parse_cors_origins("http://localhost:5173,https://example.com") == ["http://localhost:5173", "https://example.com"]
+
+    # Invalid - HTTP for non-localhost
+    with pytest.raises(RuntimeError, match="must use HTTPS unless it is localhost"):
+        parse_cors_origins("http://example.com")
+
+    with pytest.raises(RuntimeError, match="must use HTTPS unless it is localhost"):
+        parse_cors_origins("http://192.168.1.1:80")
+
+    # Invalid - Wildcards
+    with pytest.raises(RuntimeError, match="must not contain wildcards"):
+        parse_cors_origins("https://*.example.com")
+
+    with pytest.raises(RuntimeError, match="must not contain wildcards"):
+        parse_cors_origins("*")
+
+    # Invalid - general scheme / missing
+    with pytest.raises(RuntimeError, match="Invalid CORS origin"):
+        parse_cors_origins("ftp://example.com")
+
+    with pytest.raises(RuntimeError, match="must contain at least one valid origin"):
+        parse_cors_origins("")
 
 
 @pytest.fixture()
