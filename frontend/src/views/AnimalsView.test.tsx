@@ -11,12 +11,25 @@ vi.mock("../api", async () => {
 });
 
 const createAnimalMock = vi.mocked(api.createAnimal);
+const updateAnimalMock = vi.mocked(api.updateAnimal);
+const deleteAnimalMock = vi.mocked(api.deleteAnimal);
+
 const adminSession: Session = { role: "admin", display_name: "Ada", csrf_token: "csrf" };
 const vetSession: Session = { role: "vet", display_name: "Val", csrf_token: "csrf" };
 
 const mockSpecies: Species[] = [{ id: 1, common_name: "Lion", scientific_name: "Panthera leo", conservation_status: "vulnerable" }];
 const mockEnclosures: Enclosure[] = [{ id: 1, name: "Savanna", type: "savanna", capacity: 5, maintenance_status: "good", biome: "grassland" }];
-const mockAnimals: Animal[] = [];
+const mockAnimals: Animal[] = [{
+  id: 1,
+  name: "Leo",
+  species_id: 1,
+  enclosure_id: 1,
+  birth_date: "2020-01-01",
+  sex: "male",
+  health_status: "healthy",
+  species: mockSpecies[0],
+  enclosure: mockEnclosures[0]
+}];
 
 describe("AnimalsView", () => {
   beforeEach(() => {
@@ -94,5 +107,47 @@ describe("AnimalsView", () => {
     );
 
     expect(screen.queryByPlaceholderText("Name")).not.toBeInTheDocument();
+  });
+
+  it("updates animal health status and reloads on success", async () => {
+    updateAnimalMock.mockResolvedValue({ id: 1 } as never);
+    const reload = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <AnimalsView
+        session={vetSession}
+        species={mockSpecies}
+        enclosures={mockEnclosures}
+        animals={mockAnimals}
+        reload={reload}
+      />
+    );
+
+    const user = userEvent.setup();
+    await user.selectOptions(screen.getByRole("combobox", { name: "Gesundheitsstatus fuer Leo" }), "treatment");
+
+    expect(updateAnimalMock).toHaveBeenCalledWith("csrf", 1, { health_status: "treatment" });
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("deletes an animal and reloads on success when user is admin", async () => {
+    deleteAnimalMock.mockResolvedValue(true as never);
+    const reload = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <AnimalsView
+        session={adminSession}
+        species={mockSpecies}
+        enclosures={mockEnclosures}
+        animals={mockAnimals}
+        reload={reload}
+      />
+    );
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Archivieren" }));
+
+    expect(deleteAnimalMock).toHaveBeenCalledWith("csrf", 1);
+    expect(reload).toHaveBeenCalledTimes(1);
   });
 });
