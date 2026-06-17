@@ -16,7 +16,7 @@ export function VisitorMapView({ publicMap }: { publicMap: PublicZooMap | null }
     return lookup;
   }, [publicMap]);
 
-  if (!publicMap) return null;
+  if (!publicMap) return <div>Lade Karte...</div>;
 
   return (
     <div className="view-stack">
