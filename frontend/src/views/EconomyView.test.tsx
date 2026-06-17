@@ -106,12 +106,24 @@ describe("EconomyView", () => {
 
     await userEvent.selectOptions(userCombobox, "1");
 
-    // We can change dates if needed, but the form starts with defaults.
+    // Change dates to ensure onChange handlers are covered
+    // Since there are no labels, we'll get all inputs and find the date ones.
+    const container = screen.getByText("Berechnen").closest("form");
+    const inputs = container?.querySelectorAll('input[type="date"]') as NodeListOf<HTMLInputElement>;
+    const startDateInput = inputs[0];
+    const endDateInput = inputs[1];
+
+    await userEvent.clear(startDateInput);
+    await userEvent.type(startDateInput, "2023-11-01");
+
+    await userEvent.clear(endDateInput);
+    await userEvent.type(endDateInput, "2023-11-30");
+
     await userEvent.click(screen.getByRole("button", { name: "Berechnen" }));
 
     expect(salarySimulationMock).toHaveBeenCalledWith(
       "csrf",
-      expect.objectContaining({ user_id: 1 })
+      expect.objectContaining({ user_id: 1, start_date: "2023-11-01", end_date: "2023-11-30" })
     );
 
     // Assert results are shown
