@@ -74,7 +74,7 @@ export function FeedingsView({
               maxLength={80}
               required
             />
-            <input value={form.scheduled_time} onChange={(event) => setForm({ ...form, scheduled_time: event.target.value })} type="time" required />
+            <input value={form.scheduled_time} onChange={(event) => setForm({ ...form, scheduled_time: event.target.value })} type="time" aria-label="Geplante Zeit" required />
             <input
               value={form.recurrence}
               onChange={(event) => setForm({ ...form, recurrence: event.target.value })}

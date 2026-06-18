@@ -116,7 +116,7 @@ export function TasksView({
                 </option>
               ))}
             </select>
-            <input value={form.due_at} onChange={(event) => setForm({ ...form, due_at: event.target.value })} type="datetime-local" required />
+            <input value={form.due_at} onChange={(event) => setForm({ ...form, due_at: event.target.value })} type="datetime-local" aria-label="Faelligkeitsdatum" required />
             <button className="primary-button" type="submit" disabled={isSubmitting}>
               <Icon name="plus" />
               {isSubmitting ? "Speichere..." : "Anlegen"}

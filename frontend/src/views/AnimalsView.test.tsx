@@ -17,8 +17,8 @@ const deleteAnimalMock = vi.mocked(api.deleteAnimal);
 const adminSession: Session = { role: "admin", display_name: "Ada", csrf_token: "csrf" };
 const vetSession: Session = { role: "vet", display_name: "Val", csrf_token: "csrf" };
 
-const mockSpecies: Species[] = [{ id: 1, common_name: "Lion", scientific_name: "Panthera leo", conservation_status: "vulnerable" }];
-const mockEnclosures: Enclosure[] = [{ id: 1, name: "Savanna", type: "savanna", capacity: 5, maintenance_status: "good", biome: "grassland" }];
+const mockSpecies: Species[] = [{ id: 1, common_name: "Lion", scientific_name: "Panthera leo", conservation_status: "vulnerable", category: "Mammal" }];
+const mockEnclosures: Enclosure[] = [{ id: 1, name: "Savanna", capacity: 5, is_public_visible: true, location: "North", safety_status: "ok" }];
 const mockAnimals: Animal[] = [{
   id: 1,
   name: "Leo",
@@ -27,6 +27,9 @@ const mockAnimals: Animal[] = [{
   birth_date: "2020-01-01",
   sex: "male",
   health_status: "healthy",
+  active: true,
+  created_at: "2020-01-01T00:00:00Z",
+  updated_at: "2020-01-01T00:00:00Z",
   species: mockSpecies[0],
   enclosure: mockEnclosures[0]
 }];
@@ -133,6 +136,7 @@ describe("AnimalsView", () => {
   it("deletes an animal and reloads on success when user is admin", async () => {
     deleteAnimalMock.mockResolvedValue(true as never);
     const reload = vi.fn().mockResolvedValue(undefined);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
 
     render(
       <AnimalsView
@@ -145,7 +149,7 @@ describe("AnimalsView", () => {
     );
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Archivieren" }));
+    await user.click(screen.getByRole("button", { name: "Tier Leo archivieren" }));
 
     expect(deleteAnimalMock).toHaveBeenCalledWith("csrf", 1);
     expect(reload).toHaveBeenCalledTimes(1);
