@@ -108,9 +108,10 @@ export function EconomyView({
               value={salaryForm.start_date}
               onChange={(event) => setSalaryForm({ ...salaryForm, start_date: event.target.value })}
               type="date"
+              aria-label="Startdatum"
               required
             />
-            <input value={salaryForm.end_date} onChange={(event) => setSalaryForm({ ...salaryForm, end_date: event.target.value })} type="date" required />
+            <input value={salaryForm.end_date} onChange={(event) => setSalaryForm({ ...salaryForm, end_date: event.target.value })} type="date" aria-label="Enddatum" required />
             <button className="primary-button" type="submit">
               Berechnen
             </button>
