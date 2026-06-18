@@ -1,35 +1,35 @@
-from datetime import date, datetime, timezone
-from app.models import utcnow, Animal
+import datetime as dt
+
+from app import models
+from app.models import utcnow
 
 def test_utcnow():
-    before = datetime.now(timezone.utc)
+    before = dt.datetime.now(dt.timezone.utc)
     now = utcnow()
-    after = datetime.now(timezone.utc)
+    after = dt.datetime.now(dt.timezone.utc)
 
-    assert isinstance(now, datetime)
-    assert now.tzinfo is timezone.utc
+    assert isinstance(now, dt.datetime)
+    assert now.tzinfo is dt.timezone.utc
     assert before <= now <= after
 
-def test_animal_age_years():
-    # Test when birth_date is None
-    animal_no_birth_date = Animal()
+
+class MockDate(dt.date):
+    @classmethod
+    def today(cls) -> dt.date:
+        return cls(2023, 6, 15)
+
+
+def test_animal_age_years(monkeypatch):
+    monkeypatch.setattr(models, "date", MockDate)
+
+    animal_no_birth_date = models.Animal()
     assert animal_no_birth_date.age_years is None
 
-    # Test when birth_date is set
-    today = date.today()
+    animal_birthday_today = models.Animal(birth_date=dt.date(2020, 6, 15))
+    assert animal_birthday_today.age_years == 3
 
-    # Has had birthday this year
-    past_month = today.month - 1 if today.month > 1 else 12
-    past_year = today.year - 5 if today.month > 1 else today.year - 6
-    animal_had_birthday = Animal(birth_date=date(past_year, past_month, 1))
-    assert animal_had_birthday.age_years == 5
+    animal_birthday_passed = models.Animal(birth_date=dt.date(2020, 6, 14))
+    assert animal_birthday_passed.age_years == 3
 
-    # Has not had birthday this year
-    future_month = today.month + 1 if today.month < 12 else 1
-    future_year = today.year - 5 if today.month < 12 else today.year - 4
-    animal_not_had_birthday = Animal(birth_date=date(future_year, future_month, 28))
-    assert animal_not_had_birthday.age_years == 4
-
-    # Birthday is today
-    animal_birthday_today = Animal(birth_date=date(today.year - 5, today.month, today.day))
-    assert animal_birthday_today.age_years == 5
+    animal_birthday_future = models.Animal(birth_date=dt.date(2020, 6, 16))
+    assert animal_birthday_future.age_years == 2

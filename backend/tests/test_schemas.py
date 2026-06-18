@@ -3,6 +3,30 @@ from pydantic import BaseModel, field_validator
 
 from app.schemas import clean_text, clean_required_text
 
+
+def test_clean_text_edge_cases():
+    assert clean_text(None) is None
+    assert clean_text("") is None
+    assert clean_text("   \t\n  ") is None
+    assert clean_text("  hello world  ") == "hello world"
+    assert clean_text("<script>alert('xss')</script>") == "&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;"
+    assert clean_text("&lt;b&gt;bold&lt;/b&gt;") == "&lt;b&gt;bold&lt;/b&gt;"
+    assert clean_text("Hello & World") == "Hello &amp; World"
+
+
+def test_clean_required_text_edge_cases():
+    assert clean_required_text("  valid text  ") == "valid text"
+
+    with pytest.raises(ValueError, match="Value must not be empty."):
+        clean_required_text(None)  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError, match="Value must not be empty."):
+        clean_required_text("")
+
+    with pytest.raises(ValueError, match="Value must not be empty."):
+        clean_required_text("   \t\n  ")
+
+
 class DummySanitizeModel(BaseModel):
     text_field1: str | None = None
     text_field2: str | None = None

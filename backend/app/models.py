@@ -233,10 +233,9 @@ class Animal(Base, TimestampMixin):
         if self.birth_date is None:
             return None
         today = date.today()
-        years = today.year - self.birth_date.year
-        if (today.month, today.day) < (self.birth_date.month, self.birth_date.day):
-            years -= 1
-        return years
+        return today.year - self.birth_date.year - (
+            (today.month, today.day) < (self.birth_date.month, self.birth_date.day)
+        )
 
 
 class FeedingSchedule(Base):
