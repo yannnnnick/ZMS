@@ -168,3 +168,13 @@ describe("EconomyView", () => {
     expect(screen.getByText("150,00 EUR")).toBeInTheDocument();
   });
 });
+
+describe("EconomyView - Edge Cases", () => {
+  it("renders with empty visitor_stats correctly", () => {
+    const emptyStatsEconomy = { ...mockEconomy, visitor_stats: [] };
+    render(
+      <EconomyView session={adminSession} economy={emptyStatsEconomy} users={mockUsers} animals={mockAnimals} />
+    );
+    expect(screen.getByText("Besucherzahlen")).toBeInTheDocument();
+  });
+});
