@@ -1,10 +1,12 @@
+import { memo } from "react";
 import { api } from "../api";
 import { healthLabels } from "../constants";
 import type { Animal, FeedingSchedule, ZooTask } from "../types";
 import { Icon } from "./Icon";
 import { StatusChip, toneForHealth, toneForTask } from "./StatusChip";
 
-export function CompactAnimalTable({ animals }: { animals: Animal[] }) {
+// ⚡ Bolt: Wrapped in React.memo to prevent unnecessary re-renders when parent views update, keeping this pure presentational component fast.
+export const CompactAnimalTable = memo(function CompactAnimalTable({ animals }: { animals: Animal[] }) {
   if (!animals.length) return <p className="empty-state">Keine Warnungen.</p>;
   return (
     <div className="table-wrap">
@@ -30,9 +32,10 @@ export function CompactAnimalTable({ animals }: { animals: Animal[] }) {
       </table>
     </div>
   );
-}
+});
 
-export function TaskList({
+// ⚡ Bolt: Memoized TaskList to skip re-renders since task props usually stay stable between polling intervals.
+export const TaskList = memo(function TaskList({
   tasks,
   csrfToken,
   canEdit = false,
@@ -69,9 +72,10 @@ export function TaskList({
       ))}
     </div>
   );
-}
+});
 
-export function FeedingList({ feedings }: { feedings: FeedingSchedule[] }) {
+// ⚡ Bolt: FeedingList is pure. Memoizing it prevents needless render cycles when Dashboard or FeedingsView update other state.
+export const FeedingList = memo(function FeedingList({ feedings }: { feedings: FeedingSchedule[] }) {
   if (!feedings.length) return <p className="empty-state">Keine Fuetterungen geladen.</p>;
   return (
     <div className="status-list">
@@ -86,4 +90,4 @@ export function FeedingList({ feedings }: { feedings: FeedingSchedule[] }) {
       ))}
     </div>
   );
-}
+});

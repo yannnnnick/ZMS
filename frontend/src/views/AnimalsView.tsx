@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import type { FormEvent } from "react";
 import { api } from "../api";
 import { healthLabels } from "../constants";
@@ -17,7 +17,8 @@ const emptyAnimalForm = {
   health_status: "healthy" as HealthStatus
 };
 
-export function AnimalsView({
+// ⚡ Bolt: Memoized AnimalsView to decouple its render cycle from global app navigation and unrelated workspace updates.
+export const AnimalsView = memo(function AnimalsView({
   session,
   animals,
   species,
@@ -185,4 +186,4 @@ export function AnimalsView({
       </Panel>
     </div>
   );
-}
+});

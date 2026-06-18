@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { Panel } from "../components/Panel";
 import type { PublicEnclosure, PublicZooMap } from "../types";
 
@@ -9,7 +9,8 @@ function centerOf(enclosure: PublicEnclosure) {
   };
 }
 
-export function VisitorMapView({ publicMap }: { publicMap: PublicZooMap | null }) {
+// ⚡ Bolt: VisitorMapView involves SVG drawing. Memoizing it drastically improves performance by avoiding SVG re-paints.
+export const VisitorMapView = memo(function VisitorMapView({ publicMap }: { publicMap: PublicZooMap | null }) {
   const enclosureByName = useMemo(() => {
     const lookup = new Map<string, PublicEnclosure>();
     publicMap?.enclosures.forEach((enclosure) => lookup.set(enclosure.public_name, enclosure));
@@ -66,4 +67,4 @@ export function VisitorMapView({ publicMap }: { publicMap: PublicZooMap | null }
       </section>
     </div>
   );
-}
+});

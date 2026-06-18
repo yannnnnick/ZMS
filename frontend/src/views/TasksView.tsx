@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { api } from "../api";
 import { TaskList } from "../components/Lists";
@@ -18,7 +18,8 @@ const emptyTaskForm = {
   related_enclosure_id: ""
 };
 
-export function TasksView({
+// ⚡ Bolt: TasksView memoized. Keeps task management performant even when other lists poll in the background.
+export const TasksView = memo(function TasksView({
   session,
   tasks,
   animals,
@@ -130,4 +131,4 @@ export function TasksView({
       </Panel>
     </div>
   );
-}
+});

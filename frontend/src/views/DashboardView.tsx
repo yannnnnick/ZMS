@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { CompactAnimalTable, FeedingList, TaskList } from "../components/Lists";
 import { Panel } from "../components/Panel";
 import { StatusChip, toneForStatus } from "../components/StatusChip";
@@ -6,7 +6,8 @@ import type { DashboardSummary, FeedingSchedule, ZooTask } from "../types";
 import type { IconName } from "../components/Icon";
 import { Icon } from "../components/Icon";
 
-export function DashboardView({
+// ⚡ Bolt: DashboardView memoized to prevent re-renders caused by App shell changes, optimizing the initial view.
+export const DashboardView = memo(function DashboardView({
   dashboard,
   feedings,
   tasks
@@ -67,4 +68,4 @@ export function DashboardView({
       </section>
     </div>
   );
-}
+});

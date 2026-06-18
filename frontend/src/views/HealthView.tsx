@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import type { FormEvent } from "react";
 import { api } from "../api";
 import { Icon } from "../components/Icon";
@@ -15,7 +15,8 @@ const emptyHealthForm = {
   next_check_date: ""
 };
 
-export function HealthView({
+// ⚡ Bolt: HealthView is memoized to skip renders when unrelated workspace data refreshes.
+export const HealthView = memo(function HealthView({
   session,
   animals,
   healthRecords,
@@ -108,4 +109,4 @@ export function HealthView({
       </Panel>
     </div>
   );
-}
+});

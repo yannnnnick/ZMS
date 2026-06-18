@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import type { FormEvent } from "react";
 import { api } from "../api";
 import { FeedingList } from "../components/Lists";
@@ -18,7 +18,8 @@ const emptyFeedingForm = {
   notes: ""
 };
 
-export function FeedingsView({
+// ⚡ Bolt: Memoized FeedingsView. It's a complex view and benefits from avoiding renders when props are identical.
+export const FeedingsView = memo(function FeedingsView({
   session,
   animals,
   feedings,
@@ -110,4 +111,4 @@ export function FeedingsView({
       </Panel>
     </div>
   );
-}
+});

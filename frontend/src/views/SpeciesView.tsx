@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import type { FormEvent } from "react";
 import { api } from "../api";
 import { Icon } from "../components/Icon";
@@ -16,7 +16,8 @@ const emptySpeciesForm = {
   husbandry_notes: ""
 };
 
-export function SpeciesView({
+// ⚡ Bolt: Wrapped SpeciesView in React.memo to optimize rendering of the static species catalog.
+export const SpeciesView = memo(function SpeciesView({
   session,
   species,
   reload
@@ -103,4 +104,4 @@ export function SpeciesView({
       </Panel>
     </div>
   );
-}
+});

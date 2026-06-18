@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import type { FormEvent } from "react";
 import { api } from "../api";
 import { Icon } from "../components/Icon";
@@ -16,7 +16,8 @@ const emptyEnclosureAssignment = {
   user_id: ""
 };
 
-export function AssignmentsView({
+// ⚡ Bolt: Wrapped AssignmentsView in React.memo so it only re-renders when data relevant to assignments changes.
+export const AssignmentsView = memo(function AssignmentsView({
   session,
   users,
   animals,
@@ -162,4 +163,4 @@ export function AssignmentsView({
       </section>
     </div>
   );
-}
+});

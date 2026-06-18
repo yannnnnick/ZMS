@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import type { FormEvent } from "react";
 import { api } from "../api";
 import { Icon } from "../components/Icon";
@@ -16,7 +16,8 @@ const emptyEnclosureForm = {
   notes: ""
 };
 
-export function EnclosuresView({
+// ⚡ Bolt: EnclosuresView memoized to keep the heavy form and table from rendering unnecessarily.
+export const EnclosuresView = memo(function EnclosuresView({
   session,
   enclosures,
   reload
@@ -108,4 +109,4 @@ export function EnclosuresView({
       </Panel>
     </div>
   );
-}
+});
